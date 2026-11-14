@@ -5,7 +5,7 @@
   "consecutive_failures": 0,
   "last_job_count": 99,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "ashby:notion": {
   "baselined": true,
@@ -13,7 +13,7 @@
   "consecutive_failures": 0,
   "last_job_count": 166,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "ashby:openai": {
   "baselined": true,
@@ -21,7 +21,7 @@
   "consecutive_failures": 0,
   "last_job_count": 839,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "ashby:plaid": {
   "baselined": true,
@@ -29,7 +29,7 @@
   "consecutive_failures": 0,
   "last_job_count": 142,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "ashby:ramp": {
   "baselined": true,
@@ -37,7 +37,7 @@
   "consecutive_failures": 0,
   "last_job_count": 180,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "ashby:snowflake": {
   "baselined": true,
@@ -45,7 +45,7 @@
   "consecutive_failures": 0,
   "last_job_count": 376,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "greenhouse:airbnb": {
   "baselined": true,
@@ -53,7 +53,7 @@
   "consecutive_failures": 0,
   "last_job_count": 214,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "greenhouse:airtable": {
   "baselined": true,
@@ -61,7 +61,7 @@
   "consecutive_failures": 0,
   "last_job_count": 9,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "greenhouse:andurilindustries": {
   "baselined": true,
@@ -69,7 +69,7 @@
   "consecutive_failures": 0,
   "last_job_count": 2599,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "greenhouse:anthropic": {
   "baselined": true,
@@ -77,7 +77,7 @@
   "consecutive_failures": 0,
   "last_job_count": 669,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "greenhouse:appian": {
   "baselined": true,
@@ -85,7 +85,7 @@
   "consecutive_failures": 0,
   "last_job_count": 155,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "greenhouse:asana": {
   "baselined": true,
@@ -93,7 +93,7 @@
   "consecutive_failures": 0,
   "last_job_count": 109,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "greenhouse:block": {
   "baselined": true,
@@ -101,7 +101,7 @@
   "consecutive_failures": 0,
   "last_job_count": 191,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "greenhouse:brex": {
   "baselined": true,
@@ -109,7 +109,7 @@
   "consecutive_failures": 0,
   "last_job_count": 286,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "greenhouse:cloudflare": {
   "baselined": true,
@@ -117,7 +117,7 @@
   "consecutive_failures": 0,
   "last_job_count": 479,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "greenhouse:coinbase": {
   "baselined": true,
@@ -125,7 +125,7 @@
   "consecutive_failures": 0,
   "last_job_count": 265,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "greenhouse:databricks": {
   "baselined": true,
@@ -133,7 +133,7 @@
   "consecutive_failures": 0,
   "last_job_count": 896,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "greenhouse:datadog": {
   "baselined": true,
@@ -141,7 +141,7 @@
   "consecutive_failures": 0,
   "last_job_count": 384,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "greenhouse:discord": {
   "baselined": true,
@@ -149,7 +149,7 @@
   "consecutive_failures": 0,
   "last_job_count": 26,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "greenhouse:doordashusa": {
   "baselined": true,
@@ -157,7 +157,7 @@
   "consecutive_failures": 0,
   "last_job_count": 427,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "greenhouse:dropbox": {
   "baselined": true,
@@ -165,7 +165,7 @@
   "consecutive_failures": 0,
   "last_job_count": 44,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "greenhouse:duolingo": {
   "baselined": true,
@@ -173,7 +173,7 @@
   "consecutive_failures": 0,
   "last_job_count": 59,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "greenhouse:figma": {
   "baselined": true,
@@ -181,7 +181,7 @@
   "consecutive_failures": 0,
   "last_job_count": 139,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "greenhouse:flexport": {
   "baselined": true,
@@ -189,7 +189,7 @@
   "consecutive_failures": 0,
   "last_job_count": 204,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "greenhouse:gleanwork": {
   "baselined": true,
@@ -197,7 +197,7 @@
   "consecutive_failures": 0,
   "last_job_count": 121,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "greenhouse:hubspotjobs": {
   "baselined": true,
@@ -205,7 +205,7 @@
   "consecutive_failures": 0,
   "last_job_count": 147,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "greenhouse:imc": {
   "baselined": true,
@@ -213,7 +213,7 @@
   "consecutive_failures": 0,
   "last_job_count": 156,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "greenhouse:instacart": {
   "baselined": true,
@@ -221,7 +221,7 @@
   "consecutive_failures": 0,
   "last_job_count": 85,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "greenhouse:ixllearning": {
   "baselined": true,
@@ -229,7 +229,7 @@
   "consecutive_failures": 0,
   "last_job_count": 112,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "greenhouse:janestreet": {
   "baselined": true,
@@ -237,7 +237,7 @@
   "consecutive_failures": 0,
   "last_job_count": 217,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "greenhouse:lyft": {
   "baselined": true,
@@ -245,7 +245,7 @@
   "consecutive_failures": 0,
   "last_job_count": 148,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "greenhouse:mongodb": {
   "baselined": true,
@@ -253,7 +253,7 @@
   "consecutive_failures": 0,
   "last_job_count": 390,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "greenhouse:nasdaq": {
   "baselined": true,
@@ -261,7 +261,7 @@
   "consecutive_failures": 0,
   "last_job_count": 21,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "greenhouse:okta": {
   "baselined": true,
@@ -269,7 +269,7 @@
   "consecutive_failures": 0,
   "last_job_count": 362,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "greenhouse:pinterest": {
   "baselined": true,
@@ -277,7 +277,7 @@
   "consecutive_failures": 0,
   "last_job_count": 163,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "greenhouse:point72": {
   "baselined": true,
@@ -285,7 +285,7 @@
   "consecutive_failures": 0,
   "last_job_count": 200,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "greenhouse:reddit": {
   "baselined": true,
@@ -293,7 +293,7 @@
   "consecutive_failures": 0,
   "last_job_count": 145,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "greenhouse:robinhood": {
   "baselined": true,
@@ -301,7 +301,7 @@
   "consecutive_failures": 0,
   "last_job_count": 165,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "greenhouse:roblox": {
   "baselined": true,
@@ -309,7 +309,7 @@
   "consecutive_failures": 0,
   "last_job_count": 271,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "greenhouse:samsara": {
   "baselined": true,
@@ -317,7 +317,7 @@
   "consecutive_failures": 0,
   "last_job_count": 317,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "greenhouse:samsungsemiconductor": {
   "baselined": true,
@@ -325,7 +325,7 @@
   "consecutive_failures": 0,
   "last_job_count": 70,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "greenhouse:scaleai": {
   "baselined": true,
@@ -333,7 +333,7 @@
   "consecutive_failures": 0,
   "last_job_count": 170,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "greenhouse:spacex": {
   "baselined": true,
@@ -341,7 +341,7 @@
   "consecutive_failures": 0,
   "last_job_count": 2758,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "greenhouse:stripe": {
   "baselined": true,
@@ -349,7 +349,7 @@
   "consecutive_failures": 0,
   "last_job_count": 786,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "greenhouse:twilio": {
   "baselined": true,
@@ -357,7 +357,7 @@
   "consecutive_failures": 0,
   "last_job_count": 115,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "greenhouse:uberfreight": {
   "baselined": true,
@@ -365,7 +365,7 @@
   "consecutive_failures": 0,
   "last_job_count": 91,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "greenhouse:waymo": {
   "baselined": true,
@@ -373,7 +373,7 @@
   "consecutive_failures": 0,
   "last_job_count": 373,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "greenhouse:wehrtyou": {
   "baselined": true,
@@ -381,7 +381,7 @@
   "consecutive_failures": 0,
   "last_job_count": 83,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "greenhouse:zscaler": {
   "baselined": true,
@@ -389,7 +389,7 @@
   "consecutive_failures": 0,
   "last_job_count": 373,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "lever:palantir": {
   "baselined": true,
@@ -397,7 +397,7 @@
   "consecutive_failures": 0,
   "last_job_count": 302,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "lever:spotify": {
   "baselined": true,
@@ -405,15 +405,15 @@
   "consecutive_failures": 0,
   "last_job_count": 87,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "workday:snc": {
-  "baselined": false,
+  "baselined": true,
   "company": "Sierra Nevada Corporation",
   "consecutive_failures": 0,
   "last_job_count": 390,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  },
  "workday:trustage": {
   "baselined": true,
@@ -421,6 +421,6 @@
   "consecutive_failures": 0,
   "last_job_count": 29,
   "last_ok": "2026-11-14",
-  "last_ok_ts": "2026-11-14T14:48:50-05:00"
+  "last_ok_ts": "2026-11-14T14:56:41-05:00"
  }
 }
