@@ -9,12 +9,13 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "run = daily collection | verify = test every source | discover = look for new company boards"
+        description: "run = daily collection | verify = test every source | discover = look for new company boards | test-notification = post a sample report issue"
         default: run
         type: choice
-        options: [run, verify, discover]
+        options: [run, verify, discover, test-notification]
 permissions:
-  contents: write
+  contents: write   # save history and reports
+  issues: write     # post the daily report as an issue (GitHub emails it to you)
 concurrency:
   group: early-career-collector
   cancel-in-progress: false
@@ -37,13 +38,8 @@ jobs:
 
       - name: Collect
         id: collect
-        if: steps.guard.outputs.run == 'true'
+        if: steps.guard.outputs.run == 'true' && (github.event.inputs.mode || 'run') != 'test-notification'
         continue-on-error: true
-        env:
-          SMTP_HOST: ${{ secrets.SMTP_HOST }}
-          SMTP_USER: ${{ secrets.SMTP_USER }}
-          SMTP_PASS: ${{ secrets.SMTP_PASS }}
-          REPORT_TO: ${{ secrets.REPORT_TO }}
         run: python ats_collector.py ${{ github.event.inputs.mode || 'run' }}
 
       - name: Update master CSV from verification results
@@ -57,6 +53,18 @@ jobs:
       - name: Save history and reports
         if: always() && steps.guard.outputs.run == 'true'
         run: bash scripts/save_history.sh
+
+      - name: Post report as a GitHub issue (GitHub emails it to you)
+        if: always() && steps.guard.outputs.run == 'true' && (github.event.inputs.mode || 'run') == 'run'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python scripts/post_issue.py report
+
+      - name: Post a sample report issue (notification test)
+        if: steps.guard.outputs.run == 'true' && github.event.inputs.mode == 'test-notification'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python scripts/post_issue.py sample
 
       - name: Upload reports
         if: always() && steps.guard.outputs.run == 'true'
