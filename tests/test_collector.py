@@ -141,13 +141,47 @@ class TestRunBehaviour(TempState):
         self.assertEqual(r1["new"], []); self.assertEqual(len(r1["baseline"]), 2)    # Canada role skipped
         md = c.write_report(r1)
         self.assertTrue((self.tmp / "reports/baseline-2026-11-10.md").exists())
-        self.assertIn("Baseline (existing, not new): 2", md)
-        self.assertIn("Baseline", c.email_subject(r1))
+        self.assertIn("recorded as baseline (not emailed): 2", md)
+        self.assertNotIn("SWE Intern 2027", md)                                   # existing openings never in the email body
+        self.assertEqual(c.email_subject(r1), "[Early careers] 0 new, 0 to review - 2026-11-10")
         jobs["a"].append(J("Machine Learning Intern", jid=4))
         r2 = c.run(self.SRC, self.now + dt.timedelta(days=1), fetch=lambda s, seen: jobs[s["slug"]])
         self.assertEqual([n["title"] for n in r2["new"]], ["Machine Learning Intern"]); self.assertEqual(r2["baseline"], [])
         r3 = c.run(self.SRC, self.now + dt.timedelta(days=2), fetch=lambda s, seen: jobs[s["slug"]])
         self.assertEqual(r3["new"], [])                                                # de-duplicated
+
+    def test_only_postings_from_last_24h_are_emailed(self):
+        c.run(self.SRC[:1], self.now, fetch=lambda s, seen: [])                    # baseline (empty)
+        now = self.now + dt.timedelta(days=1)
+        def at(h): return (now - dt.timedelta(hours=h)).isoformat()
+        jobs = [dict(J("Fresh Intern", jid=1), posted_ts=at(3)), dict(J("Day-old Intern", jid=2), posted_ts=at(23.5)),
+                dict(J("Old Intern", jid=3), posted_ts=at(30)), dict(J("Undated Intern", jid=4)),
+                dict(J("WD Today Intern", jid=5), posted_rel="Posted Today"), dict(J("WD Old Intern", jid=6), posted_rel="Posted 5 Days Ago")]
+        r = c.run(self.SRC[:1], now, fetch=lambda s, seen: jobs)
+        self.assertEqual(sorted(n["title"] for n in r["new"]), ["Day-old Intern", "Fresh Intern", "Undated Intern", "WD Today Intern"])
+        self.assertEqual(sorted(n["title"] for n in r["older"]), ["Old Intern", "WD Old Intern"])
+        self.assertIn("no posting date", next(n for n in r["new"] if n["title"] == "Undated Intern")["reason"])
+        md = c.write_report(r)
+        self.assertNotIn("Old Intern |", md)                                         # older postings are not in the email body
+        rows = list(csv.DictReader(open(self.tmp / f"reports/{r['date']}.csv")))
+        self.assertEqual(sum(1 for x in rows if x["status"] == "OLDER_THAN_WINDOW"), 2)  # ...but are kept in the CSV
+
+    def test_missed_day_widens_window(self):
+        c.run(self.SRC[:1], self.now, fetch=lambda s, seen: [])
+        now = self.now + dt.timedelta(days=2)                                        # one daily run was missed
+        job = dict(J("Gap Intern", jid=1), posted_ts=(now - dt.timedelta(hours=40)).isoformat())
+        r = c.run(self.SRC[:1], now, fetch=lambda s, seen: [job])
+        self.assertEqual([n["title"] for n in r["new"]], ["Gap Intern"])
+
+    def test_email_capped_at_10_per_company(self):
+        c.run(self.SRC[:1], self.now, fetch=lambda s, seen: [])
+        jobs = [J(f"Technician Apprentice {i:02d}", jid=i) for i in range(25)]
+        r = c.run(self.SRC[:1], self.now, fetch=lambda s, seen: jobs)
+        self.assertEqual(len(r["new"]), 25)
+        md = c.write_report(r)
+        self.assertEqual(md.count("| A | Technician Apprentice"), 10)
+        self.assertIn("+15 more A roles in today's CSV", md)
+        self.assertEqual(len(list(csv.DictReader(open(self.tmp / f"reports/{r['date']}.csv")))), 25)   # nothing dropped
 
     def test_new_source_added_later_gets_its_own_baseline(self):
         c.run(self.SRC[:1], self.now, fetch=lambda s, seen: [J("Intern A", jid=1)])
