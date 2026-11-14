@@ -173,6 +173,21 @@ class TestRunBehaviour(TempState):
         self.assertTrue((self.tmp / f"reports/{r['date']}-unclassified.csv").exists())
         self.assertIn("[US? unverified]", r["unclassified"][1]["location"])
 
+    def test_deferred_postings_in_first_run_stay_baseline(self):
+        def batch(n_deferred):
+            jobs = [J("Engineering Intern", jid="a")]
+            for i in range(n_deferred):
+                d = J("Program Analyst " + str(i), jid=f"d{i}"); d["meta"]["_detail_skipped"] = "yes"; jobs.append(d)
+            return jobs
+        r1 = c.run(self.SRC[:1], self.now, fetch=lambda s, seen: batch(3))           # day 1: 3 deferred
+        self.assertEqual(len(r1["baseline"]), 1)
+        self.assertTrue(any("stays in baseline mode" in w for w in r1["warnings"]))
+        later = [J("Engineering Intern", jid="a"), J("Junior Analyst", jid="d0"), J("Junior Data Analyst", jid="d1")]
+        r2 = c.run(self.SRC[:1], self.now, fetch=lambda s, seen: later)              # day 2: deferred ones processed
+        self.assertEqual(r2["new"], []); self.assertEqual(len(r2["baseline"]), 2)   # still baseline, NOT new
+        r3 = c.run(self.SRC[:1], self.now, fetch=lambda s, seen: later + [J("Data Intern", jid="z")])
+        self.assertEqual([n["title"] for n in r3["new"]], ["Data Intern"])          # now genuinely new
+
     def test_deferred_detail_not_marked_seen(self):
         c.run(self.SRC[:1], self.now, fetch=lambda s, seen: [])
         j = J("Analyst", jid="p1"); j["meta"]["_detail_skipped"] = "yes"
