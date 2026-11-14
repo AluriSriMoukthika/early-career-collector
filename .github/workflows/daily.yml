@@ -1,0 +1,75 @@
+name: early-career-daily
+on:
+  schedule:
+    # Three UTC triggers; scripts/schedule_guard.py lets only the first one inside the
+    # 07:40-12:00 New York window run (handles daylight saving time and late/dropped triggers).
+    - cron: "50 11 * * *"
+    - cron: "50 12 * * *"
+    - cron: "50 13 * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "run = daily collection | verify = test every source | discover = look for new company boards"
+        default: run
+        type: choice
+        options: [run, verify, discover]
+permissions:
+  contents: write
+concurrency:
+  group: early-career-collector
+  cancel-in-progress: false
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+
+      - name: Schedule guard
+        id: guard
+        run: python scripts/schedule_guard.py
+
+      - name: Unit tests
+        if: steps.guard.outputs.run == 'true'
+        run: python -m unittest discover -s tests -v
+
+      - name: Collect
+        id: collect
+        if: steps.guard.outputs.run == 'true'
+        continue-on-error: true
+        env:
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          REPORT_TO: ${{ secrets.REPORT_TO }}
+        run: python ats_collector.py ${{ github.event.inputs.mode || 'run' }}
+
+      - name: Update master CSV from verification results
+        if: steps.guard.outputs.run == 'true' && github.event.inputs.mode == 'verify'
+        run: python update_master.py
+
+      - name: Mark today done (only if collection fully succeeded)
+        if: steps.guard.outputs.run == 'true' && steps.collect.outcome == 'success' && (github.event.inputs.mode || 'run') == 'run'
+        run: python scripts/schedule_guard.py mark-done
+
+      - name: Save history and reports
+        if: always() && steps.guard.outputs.run == 'true'
+        run: bash scripts/save_history.sh
+
+      - name: Upload reports
+        if: always() && steps.guard.outputs.run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports-${{ github.run_id }}
+          path: |
+            reports/
+            source_status.csv
+          if-no-files-found: ignore
+
+      - name: Fail the run if collection failed
+        if: steps.collect.outcome == 'failure'
+        run: |
+          echo "::error::Collector reported failed sources above threshold - see report"
+          exit 1
