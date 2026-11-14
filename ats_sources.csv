@@ -1,0 +1,56 @@
+company,ats,slug,wd_host,wd_site,enabled,live_status,jobs_at_check,last_checked,notes
+Databricks,greenhouse,databricks,,,1,WORKING,917,2026-11-10 (browser),board name matched company
+Palantir Technologies,lever,palantir,,,1,WORKING,304,2026-11-10 (browser),
+Glean,greenhouse,gleanwork,,,1,WORKING,125,2026-11-10 (browser),board name matched company
+Airtable,greenhouse,airtable,,,1,WORKING,7,2026-11-10 (browser),board name matched company
+Cloudflare,greenhouse,cloudflare,,,1,WORKING,469,2026-11-10 (browser),board name matched company
+Sierra Nevada Corporation,workday,snc,snc.wd1.myworkdayjobs.com,snc_external_career_site,1,WORKING,380,2026-11-10 (browser),
+TruStage,workday,trustage,trustage.wd1.myworkdayjobs.com,TruStage,1,WORKING,29,2026-11-10 (browser),
+Stripe,greenhouse,stripe,,,1,WORKING,776,2026-11-10 (browser),board name matched company
+MongoDB,greenhouse,mongodb,,,1,WORKING,377,2026-11-10 (browser),board name matched company
+Airbnb,greenhouse,airbnb,,,1,WORKING,203,2026-11-10 (browser),board name matched company
+Lyft,greenhouse,lyft,,,1,WORKING,155,2026-11-10 (browser),board name matched company
+DoorDash,greenhouse,doordashusa,,,1,WORKING,443,2026-11-10 (browser),board name matched company
+Instacart,greenhouse,instacart,,,1,WORKING,91,2026-11-10 (browser),board name matched company
+Pinterest,greenhouse,pinterest,,,1,WORKING,164,2026-11-10 (browser),board name matched company
+Reddit,greenhouse,reddit,,,1,WORKING,157,2026-11-10 (browser),board name matched company
+Spotify,lever,spotify,,,1,WORKING,85,2026-11-10 (browser),
+Twilio,greenhouse,twilio,,,1,WORKING,127,2026-11-10 (browser),board name matched company
+Okta,greenhouse,okta,,,1,WORKING,378,2026-11-10 (browser),board name matched company
+Dropbox,greenhouse,dropbox,,,1,WORKING,38,2026-11-10 (browser),board name matched company
+Roblox,greenhouse,roblox,,,1,WORKING,277,2026-11-10 (browser),board name matched company
+Figma,greenhouse,figma,,,1,WORKING,143,2026-11-10 (browser),board name matched company
+Notion,ashby,notion,,,1,WORKING,155,2026-11-10 (browser),
+Ramp,ashby,ramp,,,1,WORKING,174,2026-11-10 (browser),
+Plaid,lever,plaid,,,0,FAILED,,2026-11-10 (browser),Lever board gone; replaced by ashby:plaid
+Robinhood,greenhouse,robinhood,,,1,WORKING,153,2026-11-10 (browser),board name matched company
+Coinbase,greenhouse,coinbase,,,1,WORKING,285,2026-11-10 (browser),board name matched company
+Samsara,greenhouse,samsara,,,1,WORKING,314,2026-11-10 (browser),board name matched company
+Asana,greenhouse,asana,,,1,WORKING,107,2026-11-10 (browser),board name matched company
+Duolingo,greenhouse,duolingo,,,1,WORKING,61,2026-11-10 (browser),board name matched company
+OpenAI,ashby,openai,,,1,WORKING,831,2026-11-10 (browser),
+Anthropic,greenhouse,anthropic,,,1,WORKING,678,2026-11-10 (browser),board name matched company
+Scale AI,greenhouse,scaleai,,,1,WORKING,169,2026-11-10 (browser),board name matched company
+Discord,greenhouse,discord,,,1,WORKING,26,2026-11-10 (browser),board name matched company
+Brex,greenhouse,brex,,,1,WORKING,272,2026-11-10 (browser),board name matched company
+Waymo,greenhouse,waymo,,,1,WORKING,379,2026-11-10 (browser),board name matched company
+Anduril Industries,greenhouse,andurilindustries,,,1,WORKING,2573,2026-11-10 (browser),board name matched company
+SpaceX,greenhouse,spacex,,,1,WORKING,2906,2026-11-10 (browser),board name matched company
+Applied Intuition,greenhouse,appliedintuition,,,0,FAILED,,2026-11-10 (browser),HTTP 404 - board not found on Greenhouse/Lever/Ashby; needs new URL
+Hudson River Trading,greenhouse,wehrtyou,,,1,WORKING,81,2026-11-10 (browser),board name matched company
+Flexport,greenhouse,flexport,,,1,WORKING,188,2026-11-10 (browser),board name matched company
+Datadog,greenhouse,datadog,,,1,WORKING,394,2026-11-10 (browser),found by name probe; board name matched company
+Block,greenhouse,block,,,1,WORKING,197,2026-11-10 (browser),found by name probe; board name matched company
+Zscaler,greenhouse,zscaler,,,1,WORKING,377,2026-11-10 (browser),found by name probe; board name matched company
+HubSpot,greenhouse,hubspotjobs,,,1,WORKING,122,2026-11-10 (browser),found by name probe; board name matched company
+Jane Street,greenhouse,janestreet,,,1,WORKING,220,2026-11-10 (browser),found by name probe; board name matched company
+IMC Trading,greenhouse,imc,,,1,WORKING,158,2026-11-10 (browser),found by name probe; board name matched company
+Point72,greenhouse,point72,,,1,WORKING,196,2026-11-10 (browser),found by name probe; board name matched company
+Nasdaq,greenhouse,nasdaq,,,1,WORKING,21,2026-11-10 (browser),found by name probe; board name matched company
+Appian,greenhouse,appian,,,1,WORKING,158,2026-11-10 (browser),found by name probe; board name matched company
+Samsung Semiconductor (US),greenhouse,samsungsemiconductor,,,1,WORKING,68,2026-11-10 (browser),found by name probe; board name matched company
+IXL Learning,greenhouse,ixllearning,,,1,WORKING,117,2026-11-10 (browser),found by name probe; board name matched company
+Uber Freight,greenhouse,uberfreight,,,1,WORKING,92,2026-11-10 (browser),found by name probe; board name matched company
+Plaid,ashby,plaid,,,1,WORKING,142,2026-11-10 (browser),found by name probe; company named in postings
+Snowflake,ashby,snowflake,,,1,WORKING,373,2026-11-10 (browser),found by name probe; company named in postings
+Cursor (Anysphere),ashby,cursor,,,1,WORKING,115,2026-11-10 (browser),found by name probe; company named in postings
