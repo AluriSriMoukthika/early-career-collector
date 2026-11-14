@@ -15,7 +15,10 @@ HERE = Path(__file__).parent
 MASTER = HERE / "US_Early_Careers_300_Companies.csv"
 
 def rows(p):
-    return list(csv.DictReader(open(p, newline="", encoding="utf-8"))) if p.exists() else []
+    if not p.exists():
+        return []
+    with open(p, newline="", encoding="utf-8") as fh:
+        return list(csv.DictReader(fh))
 
 def main():
     master = rows(MASTER)
@@ -36,6 +39,8 @@ def main():
         for f in fr:
             key = (f["ats"].lower(), f["slug"])
             st = status.get(key, {}).get("status") or f.get("live_status", "UNTESTED")
+            if st in ("DISABLED", "UNTESTED") and f.get("live_status") == "FAILED":
+                st = "FAILED"
             checked = status.get(key, {}).get("checked") or f.get("last_checked", "")
             (working if st.startswith("WORKING") else failed if st == "FAILED" else []).append((f, checked, st))
         if working:

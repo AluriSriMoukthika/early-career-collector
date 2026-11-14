@@ -477,8 +477,12 @@ def verify(sources, all_rows=None, fetch=None):
         print(out[-1])
     for r in all_rows or []:
         if f"{r.get('ats','').lower()}:{r.get('slug','')}" not in tested:
-            out.append(dict(company=r["company"], ats=r.get("ats", ""), slug=r.get("slug", ""), status="UNTESTED",
-                            total_jobs="", us_jobs="", early_confirmed="", checked="", error=""))
+            disabled = r.get("enabled", "1") != "1"
+            out.append(dict(company=r["company"], ats=r.get("ats", ""), slug=r.get("slug", ""),
+                            status="DISABLED" if disabled else "UNTESTED", total_jobs="", us_jobs="", early_confirmed="",
+                            checked=r.get("last_checked", "") if disabled else "",
+                            error=(f"enabled=0; last live check: {r.get('live_status','')} {r.get('notes','')}".strip()
+                                   if disabled else "")))
     with open(HERE / "source_status.csv", "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=list(out[0])); w.writeheader(); w.writerows(out)
     return out
