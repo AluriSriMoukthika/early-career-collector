@@ -42,9 +42,9 @@ SENIOR_TITLE = re.compile(
 TITLE_RULES = [
     ("Rotational Program", r"\brotation(al)?\b"),
     ("Graduate Program", r"\b(development|leadership|analyst|associate|graduate|technology|early careers?) (development )?program\b|\bTDP\b|\bLDP\b|\bresidency\b|\bassociate product manager\b|\bAPM\b"),
-    ("Internship", r"\bintern(ship)?s?\b|\bsummer (analyst|associate)\b|\bapprentice(ship)?\b|\bfellowship\b|\bextern(ship)?\b"),
+    ("Internship", r"\bintern(ship)?s?\b|\bsummer (analyst|associate)\b|\bfellowship\b|\bextern(ship)?\b"),
     ("New Graduate", r"new ?grad|university grad|recent grad|\bgrads?\b|\bgraduate\b|class of 20\d\d|20\d\d start|\bcampus\b"),
-    ("Entry-Level", r"entry[- ]level|\bjunior\b|\bjr\.?\b|\b(engineer|developer|analyst|scientist|associate|specialist)\s*(i|1)\b|\blevel (i|1)\b|\bassociate\b(?!.*(general counsel|director|partner))"),
+    ("Entry-Level", r"entry[- ]level|\bapprentice(ship)?\b|\bjunior\b|\bjr\.?\b|\b(engineer|developer|analyst|scientist|associate|specialist)\s*(i|1)\b|\blevel (i|1)\b|\bassociate\b(?!.*(general counsel|director|partner))"),
     ("Early-Career Full-Time", r"early[- ]career|early talent|emerging talent|\bpathway\b"),
 ]
 TITLE_RULES = [(t, re.compile(p, re.I)) for t, p in TITLE_RULES]
@@ -76,10 +76,19 @@ def _flat(v):
     s = str(v).strip()
     return [] if s.lower() in ("", "null", "none") else [s]
 
+PREFERRED = re.compile(r"\bpreferred\b|nice[- ]to[- ]have|bonus points|\bpluses\b|\bbonus\b|desired (skills|qualifications|experience)|"
+                       r"\bideal(ly)?\b|it would be great if|additional qualifications", re.I)
+
 def min_years(text):
-    """Smallest 'N years ... experience' requirement found in text, or None."""
-    vals = [int(m.group(1)) for m in YEARS.finditer(text or "")]
-    return min(vals) if vals else None
+    """Years of experience REQUIRED by the posting, or None.
+    Only the text before the first 'preferred / nice to have' marker counts, and because every
+    required item must be met, the requirement is the LARGEST lower bound found there
+    (e.g. '5+ years of experience ... 1+ year of experience with Python' -> 5)."""
+    text = text or ""
+    m = PREFERRED.search(text)
+    required = text[:m.start()] if m else text
+    vals = [int(x.group(1)) for x in YEARS.finditer(required)]
+    return max(vals) if vals else None
 
 def classify(job):
     """job: dict(title, meta={field: value}, desc, location). Returns (status, type, reason)."""
