@@ -108,6 +108,22 @@ class TestClassification(unittest.TestCase):
         self.assertEqual(c.min_years("a 4-year degree; 1+ years experience"), 1)
         self.assertIsNone(c.min_years("Join our 10 year old company"))
 
+    def test_required_years_uses_largest_required_and_ignores_preferred(self):
+        # all required items must be met -> the largest one is the real requirement
+        self.assertEqual(c.min_years("5+ years of experience in embedded systems. 1+ year of experience with Python."), 5)
+        # SpaceX-style posting: basic 1 year, preferred 3+ -> requirement is 1
+        spacex = ("BASIC QUALIFICATIONS: Bachelor's degree in computer science; 1+ years of professional experience "
+                  "programming in C++. PREFERRED SKILLS AND EXPERIENCE: 3+ years of experience developing software.")
+        self.assertEqual(c.min_years(spacex), 1)
+        self.assertEqual(c.classify(J("Application Software Engineer", desc=spacex))[:2], ("CONFIRMED", "Entry-Level"))
+        mixed = "Requirements: 1+ years of SQL experience and 4+ years of professional analytics experience."
+        self.assertEqual(c.classify(J("Data Analyst", desc=mixed))[0], "EXCLUDED")
+        self.assertIsNone(c.min_years("Preferred: 2+ years of experience with Kubernetes"))   # only a preference
+
+    def test_apprenticeship_is_entry_level_not_internship(self):
+        self.assertEqual(c.classify(J("Apprentice Welder"))[:2], ("CONFIRMED", "Entry-Level"))
+        self.assertEqual(c.classify(J("Apprentice Controls Technician"))[:2], ("CONFIRMED", "Entry-Level"))
+
 class TempState(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
