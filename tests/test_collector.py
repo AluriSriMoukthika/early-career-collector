@@ -1,4 +1,4 @@
-import csv, datetime as dt, json, os, subprocess, sys, tempfile, unittest
+import contextlib, csv, datetime as dt, io, json, os, subprocess, sys, tempfile, unittest
 from pathlib import Path
 from unittest import mock
 from zoneinfo import ZoneInfo
@@ -184,7 +184,7 @@ class TestRunBehaviour(TempState):
         src.write_text("company,ats,slug,wd_host,wd_site,enabled\nA,greenhouse,a,,,1\nB,lever,b,,,1\n")
         with mock.patch.dict(c.FETCHERS, {"greenhouse": mock.Mock(side_effect=ConnectionError("x")),
                                           "lever": mock.Mock(return_value=iter([]))}), \
-             mock.patch.object(c, "maybe_email", return_value=False):
+             mock.patch.object(c, "maybe_email", return_value=False), contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(c.main(["run", "--sources", str(src)]), 2)
 
 class TestEndToEndCLI(TempState):
@@ -201,13 +201,26 @@ class TestEndToEndCLI(TempState):
             calls.append(req.full_url); return Resp(payload)
         src = self.tmp / "src.csv"
         src.write_text("company,ats,slug,wd_host,wd_site,enabled\nRobinhood,greenhouse,robinhood,,,1\nOff,greenhouse,off,,,0\n")
-        with mock.patch.object(c.urllib.request, "urlopen", fake_urlopen), mock.patch.object(c, "maybe_email", return_value=False):
+        with mock.patch.object(c.urllib.request, "urlopen", fake_urlopen), mock.patch.object(c, "maybe_email", return_value=False), \
+             contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(c.main(["run", "--sources", str(src)]), 0)
         self.assertEqual(calls, ["https://boards-api.greenhouse.io/v1/boards/robinhood/jobs?content=true"])   # disabled source skipped
         base = list((self.tmp / "reports").glob("baseline-*.md"))[0].read_text()
         self.assertIn("Customer Experience Associate, Pathway", base)   # keyword-less early role caught via metadata
         self.assertIn("Fraud Operations Intern", base)
         self.assertNotIn("Futures Risk Program Manager", base)
+
+class TestVerifyLabels(unittest.TestCase):
+    def test_disabled_rows_not_called_untested(self):
+        t = Path(tempfile.mkdtemp())
+        with mock.patch.object(c, "HERE", t), contextlib.redirect_stdout(io.StringIO()):
+            out = c.verify([dict(company="A", ats="greenhouse", slug="a")],
+                           [dict(company="A", ats="greenhouse", slug="a", enabled="1"),
+                            dict(company="B", ats="greenhouse", slug="b", enabled="0", live_status="FAILED", notes="404", last_checked="2026-11-10"),
+                            dict(company="C", ats="lever", slug="c", enabled="1")],
+                           fetch=lambda s, seen: [J("Intern", jid=1)])
+        self.assertEqual([o["status"] for o in out], ["WORKING", "DISABLED", "UNTESTED"])
+        self.assertIn("FAILED", out[1]["error"])
 
 class TestUpdateMaster(unittest.TestCase):
     def test_untested_never_marked_verified(self):
@@ -221,7 +234,8 @@ class TestUpdateMaster(unittest.TestCase):
         (t / "ats_sources.csv").write_text("company,ats,slug,wd_host,wd_site,enabled,live_status,jobs_at_check,last_checked,notes\n"
                                            "A,greenhouse,a,,,1,UNTESTED,,,\nB,greenhouse,b,,,1,WORKING,5,2026-11-10,\n")
         with mock.patch.object(um, "HERE", t), mock.patch.object(um, "MASTER", t / "US_Early_Careers_300_Companies.csv"):
-            um.main()
+            with contextlib.redirect_stdout(io.StringIO()):
+                um.main()
         rows = {r["Company_Name"]: r for r in csv.DictReader(open(t / "US_Early_Careers_300_Companies.csv"))}
         self.assertTrue(rows["A"]["URL_Verification_Status"].startswith("UNVERIFIED"))
         self.assertTrue(rows["B"]["URL_Verification_Status"].startswith("VERIFIED"))
