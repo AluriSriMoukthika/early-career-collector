@@ -11,7 +11,7 @@ Every morning it checks the public job feeds of the companies in `ats_sources.cs
 
 Types: Internship, New Graduate, Entry-Level, Early-Career Full-Time, Graduate Program, Rotational Program.
 
-**What gets emailed.** Only postings published in the last 24 hours (new + needs review), up to 10 per company. Existing openings, older postings and unclassified postings are never emailed; they're kept in the CSV files in `reports/`.
+**What gets emailed** (as a GitHub issue notification). Only postings published in the last 24 hours (new + needs review), up to 10 per company. Existing openings, older postings and unclassified postings are never emailed; they're kept in the CSV files in `reports/`.
 
 **History.** Every posting is remembered in `state/seen_jobs.json`, so nothing is reported twice. The first time a source is checked, its current postings go into `reports/baseline-<date>.md` as *existing* roles for you to review. They are never reported as new.
 
@@ -23,6 +23,7 @@ Types: Internship, New Graduate, Entry-Level, Early-Career Full-Time, Graduate P
 - `US_Early_Careers_300_Companies.csv` + `update_master.py`: the master database and the script that syncs it with check results
 - `visualping_pilot.csv`: pages proposed for Visualping (companies with no public feed)
 - `scripts/schedule_guard.py`: makes the daily run start at about 8 AM New York time all year
+- `scripts/post_issue.py`: posts each daily report as an issue assigned to you, and closes the previous day's report issue
 - `scripts/save_history.sh`: commits history and reports back to the repo, retrying if needed
 - `tests/`: 26 offline tests, including real Greenhouse postings captured on 2026-11-10
 
@@ -32,13 +33,10 @@ Types: Internship, New Graduate, Entry-Level, Early-Career Full-Time, Graduate P
 2. **Upload the files.** Unzip `early_career_collector_v2.zip`. On the empty repo page, click **uploading an existing file** and drag in *everything inside* the unzipped folder. That includes the hidden `.github` folder: on a Mac, press **Cmd+Shift+.** in Finder to show hidden files; on Windows, View → Show → Hidden items. Click **Commit changes**.
    Check that `.github/workflows/daily.yml` appears in the repo. If it doesn't, click **Add file → Create new file**, type `.github/workflows/daily.yml` as the name, and paste in the file's contents.
 3. **Allow the workflow to save history.** Go to **Settings → Actions → General → Workflow permissions**, select **Read and write permissions**, and click **Save**.
-4. **Email (optional; skip for the first test).** Go to **Settings → Secrets and variables → Actions → New repository secret** and add:
-   - `SMTP_HOST` = `smtp.gmail.com`
-   - `SMTP_USER` = your Gmail address
-   - `SMTP_PASS` = a Gmail **App Password**, not your normal password. Create one at Google Account → Security → 2-Step Verification → App passwords.
-   - `REPORT_TO` = the address that should receive reports
-
-   Secrets are encrypted and never appear in files or logs.
+4. **Daily report delivery (no passwords).** Each run posts the report as an issue in this repo, assigned to you. GitHub emails it to you from notifications@github.com. To make sure the emails arrive, check these settings:
+   - **github.com/settings/notifications:** your **Default notification email** is an address you read. Under **Participating, @mentions and custom**, tick **Email**.
+   - **This repo page → Watch:** set it to **All Activity**, or to **Custom** with **Issues** ticked.
+   - To check it all works, go to Actions → Run workflow → mode **test-notification**. This posts a clearly labelled sample issue.
 5. **First live verification (safe, read-only).** Go to **Actions** → **early-career-daily** → **Run workflow** → mode **verify** → **Run workflow**. This:
    - runs the unit tests,
    - calls each feed once,
@@ -62,7 +60,6 @@ GitHub pauses scheduled workflows in repos with no activity for 60 days. The dai
 `EMAIL_CAP_PER_COMPANY` (default 10): rows per company in the email; the rest are counted ("+N more … in today's CSV") and listed in the CSV.
 `WORKDAY_DETAIL_CAP` (default 150): description lookups per Workday company per run. Postings over the cap are deferred to the next run, not dropped.
 `FAIL_EXIT_RATIO` (default 0.25): share of failed sources that marks the run as failed.
-`EMAIL_EMPTY_STATUS` (default 1): send a short status email even when nothing is new.
 
 ## Running the tests locally
 `python -m unittest discover -s tests -v` (Python 3.9+, no extra packages needed)

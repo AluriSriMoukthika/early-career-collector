@@ -482,12 +482,12 @@ def write_report(res):
         grp = [n for n in shown_new if n["type"] == typ]
         if grp:
             L += ["", f"## New - {typ} ({sum(1 for n in res['new'] if n['type'] == typ)})", ""] + _table(grp)
-    shown_rv, hidden_rv = cap_per_company(res["review"], EMAIL_CAP_PER_COMPANY, used)
+    shown_rv, hidden_rv = cap_per_company(res["review"], EMAIL_CAP_PER_COMPANY)   # own budget: never crowded out
     if shown_rv:
         L += ["", f"## Needs your review ({len(res['review'])}) - level uncertain", ""] + _table(shown_rv, True)
     hidden = {k: hidden_new.get(k, 0) + hidden_rv.get(k, 0) for k in set(hidden_new) | set(hidden_rv)}
     if hidden:
-        L += ["", f"Showing up to {EMAIL_CAP_PER_COMPANY} roles per company. The full list is in reports/{d}.csv:"] + \
+        L += ["", f"Showing up to {EMAIL_CAP_PER_COMPANY} roles per company in each section. The full list is in reports/{d}.csv:"] + \
              [f"- +{v} more {k} roles in today's CSV" for k, v in sorted(hidden.items(), key=lambda x: -x[1])]
     if res["errors"]:
         L += ["", "## Sources that FAILED (not checked this run)", ""] + [f"- {e}" for e in res["errors"]]
@@ -518,6 +518,11 @@ def write_report(res):
         if rv:
             B += ["", f"## Level uncertain ({len(rv)})", ""] + _table(rv, True)
         (REPORTS / f"baseline-{d}.md").write_text("\n".join(B) + "\n")
+    # machine-readable summary used by scripts/post_issue.py
+    (REPORTS / f"{d}-summary.json").write_text(json.dumps(dict(
+        date=d, status=status_line(res), ok=res["ok"], total=res["total"], failed=len(res["errors"]),
+        new=len(res["new"]), review=len(res["review"]), older=len(res.get("older", [])),
+        baseline=len(res["baseline"]), unclassified=len(res["unclassified"]), window_hours=win), indent=1))
     return md
 
 def maybe_email(subject, body):
