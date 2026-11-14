@@ -7,6 +7,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT)); sys.path.insert(0, str(ROOT / "scripts"))
 import ats_collector as c
 import schedule_guard as g
+import post_issue as pi
 
 FIX = json.loads((ROOT / "tests/fixtures/greenhouse_real_sample.json").read_text())["jobs"]
 NY = ZoneInfo("America/New_York")
@@ -286,6 +287,74 @@ class TestVerifyLabels(unittest.TestCase):
                            fetch=lambda s, seen: [J("Intern", jid=1)])
         self.assertEqual([o["status"] for o in out], ["WORKING", "DISABLED", "UNTESTED"])
         self.assertIn("FAILED", out[1]["error"])
+
+class TestPostIssue(TempState):
+    def setUp(self):
+        super().setUp()
+        p = mock.patch.object(pi, "REPORTS", self.tmp / "reports"); p.start(); self.addCleanup(p.stop)
+
+    def _report(self, fail=False):
+        src = [dict(company="SpaceX", ats="greenhouse", slug="s"), dict(company="B", ats="lever", slug="b")]
+        c.run(src, self.now, fetch=lambda s, seen: [])
+        def f(s, seen):
+            if fail and s["slug"] == "b": raise ConnectionError("down")
+            return [J(f"Apprentice Tech {i:02d}", jid=i) for i in range(12)] + [J("Business Analyst", desc="2+ years of experience", jid=99)]
+        r = c.run(src, self.now, fetch=f)
+        c.write_report(r)
+        return r
+
+    def test_report_issue_contents(self):
+        self._report()
+        title, body = pi.build_report_issue("2026-11-10", "me/repo", "me", "RUNURL")
+        self.assertEqual(title, "Early-career report 2026-11-10 - 24 new, 2 to review")
+        self.assertIn("| SpaceX | Apprentice Tech 00 |", body)            # company, title...
+        self.assertIn("https://x/Apprentice Tech 00", body)                 # ...and application link
+        self.assertIn("+2 more SpaceX roles", body)                          # 10-per-company cap (12 new) (12 new + 1 review)
+        self.assertIn("Needs your review", body)                             # uncertain roles visible
+        self.assertIn("https://github.com/me/repo/blob/main/reports/2026-11-10.csv", body)
+        self.assertIn("cc @me", body)
+
+    def test_failed_sources_in_title_and_body(self):
+        self._report(fail=True)
+        title, body = pi.build_report_issue("2026-11-10", "me/repo", "me", "RUNURL")
+        self.assertIn("[1 sources failed]", title)
+        self.assertIn("Sources that FAILED", body); self.assertIn("INCOMPLETE", body)
+
+    def test_missing_report_is_not_silent(self):
+        title, body = pi.build_report_issue("2026-11-10", "me/repo", "me", "RUNURL")
+        self.assertIn("DID NOT FINISH", title); self.assertIn("not** a statement that nothing new", body)
+
+    def test_truncation(self):
+        long = "x\n" * 40000
+        out = pi.truncate(long, "LINK")
+        self.assertLess(len(out), 65536); self.assertIn("Full report: LINK", out)
+
+    def test_main_creates_assigned_issue_and_closes_old_reports(self):
+        self._report()
+        calls = []
+        def fake_api(method, path, payload=None, token=None):
+            calls.append((method, path, payload))
+            if method == "POST": return {"number": 7, "html_url": "u"}
+            if method == "GET": return [{"number": 5, "title": "Early-career report 2026-11-09 - 0 new, 0 to review"},
+                                        {"number": 6, "title": "Early-career report - TEST NOTIFICATION (sample data, not real jobs)"},
+                                        {"number": 4, "title": "Unrelated issue"}, {"number": 3, "title": "PR", "pull_request": {}}]
+            return {}
+        env = {"GITHUB_REPOSITORY": "me/repo", "GITHUB_REPOSITORY_OWNER": "me", "GITHUB_RUN_ID": "1"}
+        with mock.patch.object(pi, "api", fake_api), mock.patch.dict(os.environ, env), \
+             mock.patch.object(pi.dt, "datetime", mock.Mock(now=lambda tz=None: self.now)), contextlib.redirect_stdout(io.StringIO()):
+            pi.main(["x", "report"])
+        post = calls[0]
+        self.assertEqual((post[0], post[1]), ("POST", "/repos/me/repo/issues")); self.assertEqual(post[2]["assignees"], ["me"])
+        self.assertEqual([c_[1] for c_ in calls if c_[0] == "PATCH"], ["/repos/me/repo/issues/5"])   # only the old report closed
+
+    def test_sample_issue(self):
+        calls = []
+        env = {"GITHUB_REPOSITORY": "me/repo", "GITHUB_REPOSITORY_OWNER": "me", "GITHUB_RUN_ID": "1"}
+        with mock.patch.object(pi, "api", lambda m, p, payload=None, token=None: calls.append((m, payload)) or {"number": 1}), \
+             mock.patch.dict(os.environ, env), contextlib.redirect_stdout(io.StringIO()):
+            pi.main(["x", "sample"])
+        self.assertEqual(len(calls), 1)
+        self.assertIn("TEST NOTIFICATION", calls[0][1]["title"]); self.assertIn("sample data", calls[0][1]["body"])
 
 class TestUpdateMaster(unittest.TestCase):
     def test_untested_never_marked_verified(self):
