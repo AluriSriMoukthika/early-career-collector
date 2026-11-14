@@ -29,6 +29,8 @@ UA = {"User-Agent": "early-career-collector/2.0 (personal job search; contact vi
       "Accept": "application/json"}
 WORKDAY_DETAIL_CAP = int(os.environ.get("WORKDAY_DETAIL_CAP", "150"))   # detail calls per source per run
 FAIL_EXIT_RATIO = float(os.environ.get("FAIL_EXIT_RATIO", "0.25"))       # >25% failed sources -> exit 2
+MAX_AGE_HOURS = float(os.environ.get("MAX_AGE_HOURS", "24"))             # email only postings this fresh
+EMAIL_CAP_PER_COMPANY = int(os.environ.get("EMAIL_CAP_PER_COMPANY", "10"))  # rows per company in the email
 
 TYPES = ["Internship", "New Graduate", "Entry-Level", "Early-Career Full-Time", "Graduate Program", "Rotational Program"]
 
@@ -214,7 +216,7 @@ def fetch_greenhouse(src):
             meta.setdefault("Department", d.get("name"))
         yield dict(id=j["id"], title=j["title"], url=j.get("absolute_url", ""),
                    location=(j.get("location") or {}).get("name", ""), country="",
-                   posted=(j.get("first_published") or j.get("updated_at") or "")[:10],
+                   posted=(j.get("first_published") or "")[:10], posted_ts=j.get("first_published") or "",
                    meta=meta, desc=strip_html(j.get("content", "")))
 
 def fetch_lever(src):
@@ -226,7 +228,9 @@ def fetch_lever(src):
         yield dict(id=j["id"], title=j["text"], url=j.get("hostedUrl", ""),
                    location=c.get("location") or ", ".join(c.get("allLocations") or []),
                    country="United States" if cc == "US" else (cc or ""),
-                   posted=ms_to_date(j.get("createdAt")), meta=meta, desc=desc)
+                   posted=ms_to_date(j.get("createdAt")),
+                   posted_ts=dt.datetime.fromtimestamp(j["createdAt"] / 1000, dt.timezone.utc).isoformat() if j.get("createdAt") else "",
+                   meta=meta, desc=desc)
 
 def fetch_ashby(src):
     js = http_json(f"https://api.ashbyhq.com/posting-api/job-board/{src['slug']}")
@@ -238,7 +242,8 @@ def fetch_ashby(src):
         meta = {"employment type": j.get("employmentType"), "department": j.get("department"), "team": j.get("team")}
         yield dict(id=j["id"], title=j["title"], url=j.get("jobUrl", ""), location="; ".join(l for l in locs if l),
                    country="" if len(locs) > 1 else country,
-                   posted=(j.get("publishedAt") or "")[:10], meta=meta, desc=j.get("descriptionPlain") or "")
+                   posted=(j.get("publishedAt") or "")[:10], posted_ts=j.get("publishedAt") or "",
+                   meta=meta, desc=j.get("descriptionPlain") or "")
 
 def ms_to_date(ms):
     return dt.datetime.fromtimestamp(ms / 1000, dt.timezone.utc).date().isoformat() if ms else ""
@@ -304,7 +309,30 @@ def fetch_workday(src, seen_ids=frozenset(), today=None):
             meta["_detail_skipped"] = "yes"
         yield dict(id=path, title=p.get("title", ""), url=f"https://{host}/{site}{path}",
                    location=p.get("locationsText", ""), country=country,
-                   posted=workday_posted(p.get("postedOn"), today), meta=meta, desc=desc)
+                   posted=workday_posted(p.get("postedOn"), today), posted_rel=p.get("postedOn") or "",
+                   meta=meta, desc=desc)
+
+def posting_age_hours(job, now):
+    """Hours since the posting was published, or None if the feed gives no date.
+    Workday only says 'Posted Today / Yesterday / N Days Ago', so it is mapped to 0 / 24 / N*24."""
+    rel = (job.get("posted_rel") or "").lower()
+    if rel:
+        if "today" in rel:
+            return 0.0
+        if "yesterday" in rel:
+            return 24.0
+        m = re.search(r"(\d+)\+?\s*days?", rel)
+        return float(m.group(1)) * 24 if m else None
+    ts = job.get("posted_ts") or ""
+    if not ts:
+        return None
+    try:
+        t = dt.datetime.fromisoformat(ts.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if t.tzinfo is None:
+        t = t.replace(tzinfo=dt.timezone.utc)
+    return max(0.0, (now - t).total_seconds() / 3600)
 
 FETCHERS = {"greenhouse": fetch_greenhouse, "lever": fetch_lever, "ashby": fetch_ashby, "workday": fetch_workday}
 
@@ -333,8 +361,8 @@ def run(sources, now=None, fetch=None):
     today = now.date().isoformat()
     seen = load_json(SEEN, {})
     sstate = load_json(SRC_STATE, {})
-    res = dict(date=today, new=[], baseline=[], review=[], unclassified=[], errors=[], warnings=[],
-               ok=0, total=len(sources), excluded={})
+    res = dict(date=today, new=[], baseline=[], review=[], unclassified=[], older=[], errors=[], warnings=[],
+               ok=0, total=len(sources), excluded={}, window_hours=MAX_AGE_HOURS)
     for s in sources:
         k = src_key(s)
         st = sstate.setdefault(k, {"company": s["company"], "baselined": False, "consecutive_failures": 0})
@@ -355,7 +383,14 @@ def run(sources, now=None, fetch=None):
         prev = st.get("last_job_count")
         if not jobs and prev:
             res["warnings"].append(f"{s['company']} ({k}) returned 0 jobs (previous run: {prev}) - board may have moved")
-        st.update(last_ok=today, consecutive_failures=0, last_job_count=len(jobs))
+        # Freshness window: normally MAX_AGE_HOURS; if the previous successful check was longer ago
+        # (a missed day), widen it to cover the gap so nothing posted in between is lost.
+        window = MAX_AGE_HOURS
+        if st.get("last_ok_ts"):
+            gap = (now - dt.datetime.fromisoformat(st["last_ok_ts"])).total_seconds() / 3600
+            window = max(window, gap + 1)
+        res["window_hours"] = max(res["window_hours"], window)
+        st.update(last_ok=today, last_ok_ts=now.isoformat(timespec="seconds"), consecutive_failures=0, last_job_count=len(jobs))
         st.pop("last_error", None)
         res["ok"] += 1
         first_time = not st["baselined"]
@@ -375,15 +410,22 @@ def run(sources, now=None, fetch=None):
             if status == "EXCLUDED":
                 res["excluded"][why.split(" (")[0]] = res["excluded"].get(why.split(" (")[0], 0) + 1
                 continue
+            age = posting_age_hours(j, now)
             row = dict(company=s["company"], title=j["title"].strip(), type=typ or "-", status=status, reason=why,
                        location=(j.get("location") or "(not listed)") + ("" if us else " [US? unverified]"),
-                       posted=j.get("posted", ""), detected=today, url=j.get("url", ""))
-            if status == "CONFIRMED":
-                res["baseline" if first_time else "new"].append(row)
-            elif status == "REVIEW":
-                (res["baseline"] if first_time else res["review"]).append(row)
-            else:
+                       posted=(j.get("posted", "") or "(no date)"), age_hours="" if age is None else round(age, 1),
+                       detected=today, url=j.get("url", ""))
+            if status == "UNCLASSIFIED":
                 res["unclassified"].append(row)
+            elif first_time:
+                res["baseline"].append(row)
+            elif age is not None and age > window:
+                row["reason"] += f"; posted {age:.0f}h ago (older than {window:.0f}h window)"
+                res["older"].append(row)
+            else:
+                if age is None:
+                    row["reason"] += "; feed gives no posting date"
+                res["new" if status == "CONFIRMED" else "review"].append(row)
         if deferred:
             res["warnings"].append(f"{s['company']}: {deferred} postings deferred to the next run (Workday detail cap)"
                                    + ("; source stays in baseline mode until all are processed" if first_time else ""))
@@ -404,6 +446,17 @@ def status_line(res):
                 f"{res['ok']} sources that succeeded.")
     return f"OK - all {res['total']} sources checked."
 
+def cap_per_company(rows, cap, used=None):
+    """Keep at most `cap` rows per company (counting rows already shown via `used`)."""
+    used = used if used is not None else {}
+    shown, hidden = [], {}
+    for n in sorted(rows, key=lambda x: (x["company"], TYPES.index(x["type"]) if x["type"] in TYPES else 99, x["title"])):
+        if used.get(n["company"], 0) < cap:
+            shown.append(n); used[n["company"]] = used.get(n["company"], 0) + 1
+        else:
+            hidden[n["company"]] = hidden.get(n["company"], 0) + 1
+    return shown, hidden
+
 def _table(rows, with_reason=False):
     h = "| Company | Opportunity | Type | Location | Posted | Date Detected | Application Link |" + (" Why |" if with_reason else "")
     out = [h, "|" + "---|" * (8 if with_reason else 7)]
@@ -415,17 +468,27 @@ def _table(rows, with_reason=False):
 def write_report(res):
     REPORTS.mkdir(exist_ok=True)
     d = res["date"]
+    win = res.get("window_hours", MAX_AGE_HOURS)
     L = [f"# Early-career report - {d}", "", f"**Run status: {status_line(res)}**", "",
-         f"Sources OK: {res['ok']}/{res['total']} | New confirmed: {len(res['new'])} | Needs review: {len(res['review'])} | "
-         f"Baseline (existing, not new): {len(res['baseline'])} | Unclassified (in CSV): {len(res['unclassified'])}", ""]
+         f"Postings published in the last {win:.0f} hours: New confirmed: {len(res['new'])} | Needs review: {len(res['review'])}", "",
+         f"Sources OK: {res['ok']}/{res['total']} | Newly detected but older than {win:.0f}h (CSV only): {len(res.get('older', []))} | "
+         f"Existing openings recorded as baseline (not emailed): {len(res['baseline'])} | Unclassified (CSV only): {len(res['unclassified'])}", ""]
     if not res["new"] and not res["review"]:
-        L.append("No new early-career opportunities in the sources that were checked." if res["ok"] else "")
+        L.append(f"No new early-career opportunities published in the last {win:.0f} hours in the sources that were checked."
+                 if res["ok"] else "")
+    used = {}
+    shown_new, hidden_new = cap_per_company(res["new"], EMAIL_CAP_PER_COMPANY, used)
     for typ in TYPES:
-        grp = [n for n in res["new"] if n["type"] == typ]
+        grp = [n for n in shown_new if n["type"] == typ]
         if grp:
-            L += ["", f"## New - {typ} ({len(grp)})", ""] + _table(grp)
-    if res["review"]:
-        L += ["", f"## Needs your review ({len(res['review'])}) - level uncertain", ""] + _table(res["review"], True)
+            L += ["", f"## New - {typ} ({sum(1 for n in res['new'] if n['type'] == typ)})", ""] + _table(grp)
+    shown_rv, hidden_rv = cap_per_company(res["review"], EMAIL_CAP_PER_COMPANY, used)
+    if shown_rv:
+        L += ["", f"## Needs your review ({len(res['review'])}) - level uncertain", ""] + _table(shown_rv, True)
+    hidden = {k: hidden_new.get(k, 0) + hidden_rv.get(k, 0) for k in set(hidden_new) | set(hidden_rv)}
+    if hidden:
+        L += ["", f"Showing up to {EMAIL_CAP_PER_COMPANY} roles per company. The full list is in reports/{d}.csv:"] + \
+             [f"- +{v} more {k} roles in today's CSV" for k, v in sorted(hidden.items(), key=lambda x: -x[1])]
     if res["errors"]:
         L += ["", "## Sources that FAILED (not checked this run)", ""] + [f"- {e}" for e in res["errors"]]
     if res["warnings"]:
@@ -437,11 +500,12 @@ def write_report(res):
         L += ["", "Excluded this run: " + ", ".join(f"{k}: {v}" for k, v in sorted(res["excluded"].items()))]
     md = "\n".join(L) + "\n"
     (REPORTS / f"{d}.md").write_text(md)
-    fields = ["company", "title", "type", "status", "reason", "location", "posted", "detected", "url"]
-    for name, rows in (("", res["new"] + res["review"]), ("-baseline", res["baseline"]), ("-unclassified", res["unclassified"])):
+    fields = ["company", "title", "type", "status", "reason", "location", "posted", "age_hours", "detected", "url"]
+    older = [dict(r, status="OLDER_THAN_WINDOW") for r in res.get("older", [])]
+    for name, rows in (("", res["new"] + res["review"] + older), ("-baseline", res["baseline"]), ("-unclassified", res["unclassified"])):
         if rows or name == "":
             with open(REPORTS / f"{d}{name}.csv", "w", newline="", encoding="utf-8") as f:
-                w = csv.DictWriter(f, fieldnames=fields); w.writeheader(); w.writerows(rows)
+                w = csv.DictWriter(f, fieldnames=fields, extrasaction="ignore"); w.writeheader(); w.writerows(rows)
     if res["baseline"]:
         B = [f"# Baseline - existing early-career postings ({d})", "",
              "These were already open when each source was first added. They are listed for review, "
@@ -469,10 +533,7 @@ def maybe_email(subject, body):
 
 def email_subject(res):
     tag = "" if not res["errors"] else (" [RUN FAILED]" if res["ok"] == 0 else f" [{len(res['errors'])} sources failed]")
-    base = f"[Early careers] {len(res['new'])} new, {len(res['review'])} to review - {res['date']}{tag}"
-    if res["baseline"] and not res["new"] and not res["review"]:
-        base = f"[Early careers] Baseline: {len(res['baseline'])} existing roles (not new) - {res['date']}{tag}"
-    return base
+    return f"[Early careers] {len(res['new'])} new, {len(res['review'])} to review - {res['date']}{tag}"
 
 # ============================================================== verify & discover
 def verify(sources, all_rows=None, fetch=None):
@@ -574,10 +635,9 @@ def main(argv=None):
     if summ:
         with open(summ, "a") as f:
             f.write(md)
-    if res["new"] or res["review"] or res["errors"] or res["baseline"]:
-        body = md + (("\n\n" + (REPORTS / f"baseline-{res['date']}.md").read_text()) if res["baseline"] else "")
-        maybe_email(email_subject(res), body)
-    elif os.environ.get("EMAIL_EMPTY_STATUS", "1") == "1":
+    # The email carries only postings published within the window (new + needs review).
+    # Existing openings (baseline), older postings and unclassified ones stay in the repo's CSV files.
+    if res["new"] or res["review"] or res["errors"] or os.environ.get("EMAIL_EMPTY_STATUS", "1") == "1":
         maybe_email(email_subject(res), md)
     if res["total"] and len(res["errors"]) / res["total"] > FAIL_EXIT_RATIO:
         print(f"::error::{len(res['errors'])}/{res['total']} sources failed")

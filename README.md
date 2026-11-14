@@ -11,6 +11,8 @@ Every morning it checks the public job feeds of the companies in `ats_sources.cs
 
 Types: Internship, New Graduate, Entry-Level, Early-Career Full-Time, Graduate Program, Rotational Program.
 
+**What gets emailed.** Only postings published in the last 24 hours (new + needs review), up to 10 per company. Existing openings, older postings and unclassified postings are never emailed; they're kept in the CSV files in `reports/`.
+
 **History.** Every posting is remembered in `state/seen_jobs.json`, so nothing is reported twice. The first time a source is checked, its current postings go into `reports/baseline-<date>.md` as *existing* roles for you to review. They are never reported as new.
 
 **Failures.** If any source fails, the report says **INCOMPLETE** or **RUN FAILED** and lists the failed sources. It never says "no new opportunities" for sources it couldn't check. If more than 25% of sources fail, the GitHub run is marked failed, and GitHub emails you about failed runs.
@@ -56,6 +58,8 @@ GitHub pauses scheduled workflows in repos with no activity for 60 days. The dai
 - **No public feed** (e.g. Google, Amazon, JPMorgan): use Visualping. See `visualping_pilot.csv`.
 
 ## Settings (environment variables)
+`MAX_AGE_HOURS` (default 24): only postings published within this many hours are emailed. If a daily run was missed, the window widens to cover the gap. Older postings detected for the first time stay in the daily CSV, marked `OLDER_THAN_WINDOW`.
+`EMAIL_CAP_PER_COMPANY` (default 10): rows per company in the email; the rest are counted ("+N more … in today's CSV") and listed in the CSV.
 `WORKDAY_DETAIL_CAP` (default 150): description lookups per Workday company per run. Postings over the cap are deferred to the next run, not dropped.
 `FAIL_EXIT_RATIO` (default 0.25): share of failed sources that marks the run as failed.
 `EMAIL_EMPTY_STATUS` (default 1): send a short status email even when nothing is new.
