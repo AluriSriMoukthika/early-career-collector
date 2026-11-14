@@ -350,12 +350,13 @@ def run(sources, now=None, fetch=None):
         st.pop("last_error", None)
         res["ok"] += 1
         first_time = not st["baselined"]
+        deferred = 0
         for j in jobs:
             key = f"{k}|{j['id']}"
             if key in seen:
                 continue
             if j.get("meta", {}).pop("_detail_skipped", None):
-                res["warnings"].append(f"{s['company']}: detail fetch cap reached; some postings deferred to next run")
+                deferred += 1
                 continue   # not marked seen -> retried next run
             us = is_us(j.get("location"), j.get("country", ""))
             seen[key] = today
@@ -374,7 +375,11 @@ def run(sources, now=None, fetch=None):
                 (res["baseline"] if first_time else res["review"]).append(row)
             else:
                 res["unclassified"].append(row)
-        st["baselined"] = True
+        if deferred:
+            res["warnings"].append(f"{s['company']}: {deferred} postings deferred to the next run (Workday detail cap)"
+                                   + ("; source stays in baseline mode until all are processed" if first_time else ""))
+        else:
+            st["baselined"] = True   # a source leaves baseline mode only once every posting has been processed
     res["warnings"] = sorted(set(res["warnings"]))
     save_json(SEEN, seen)
     save_json(SRC_STATE, sstate)
