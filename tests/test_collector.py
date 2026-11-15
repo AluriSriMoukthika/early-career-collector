@@ -452,9 +452,57 @@ class TestRelevanceRealisticDescriptions(TempState):
         self.assertEqual(r["excluded"]["military transition program"], 2)
 
     def test_work_authorization_flags(self):
-        self.assertEqual(rel.work_auth("We are unable to sponsor or take over sponsorship of an employment visa."), "No visa sponsorship")
-        self.assertIn("Security clearance required", rel.work_auth("Must have an active Secret clearance. Must be a U.S. citizen."))
-        self.assertEqual(rel.work_auth("Python and SQL."), "Not stated (unverified)")
+        A = rel.auth_assessment
+        # explicit citizenship -> excluded
+        for d in ("Must be a U.S. citizen.", "U.S. citizenship required.", "This role is open to U.S. citizens only.",
+                  "Requires United States citizenship due to contract requirements.", "U.S. nationals only."):
+            st, label = A(d)
+            self.assertEqual(st, "EXCLUDE", d); self.assertTrue(label.startswith("Excluded — Citizenship/Clearance"), d)
+        # explicit clearance -> excluded
+        for d in ("Active Secret clearance required.", "Must be eligible to obtain a Top Secret clearance.",
+                  "Candidates must hold an active TS/SCI.", "Ability to obtain and maintain a DoD security clearance."):
+            self.assertEqual(A(d)[0], "EXCLUDE", d)
+        # no sponsorship / existing work authorization -> retained and flagged
+        for d in ("We do not offer visa sponsorship for this position.", "Sponsorship is not available for this position.",
+                  "We are unable to sponsor employment visas.", "No immigration sponsorship now or in the future."):
+            st, label = A(d)
+            self.assertEqual((st, label), ("NO_SPONSORSHIP", "Included — No Sponsorship (does not offer visa sponsorship)"), d)
+        for d in ("Must be authorized to work in the United States.", "Must have existing U.S. work authorization."):
+            self.assertEqual(A(d), ("WORK_AUTH", "Included — Existing U.S. work authorization required"), d)
+        # ambiguous -> needs review (never excluded)
+        for d in ("Applicants must be a U.S. person as defined by ITAR.", "Export control regulations apply to this role.",
+                  "ITAR compliance required.", "Permanent work authorization required.", "Security screening required.",
+                  "Offer contingent on a background check.", "Must be a U.S. citizen or permanent resident.",
+                  "Secret clearance is a plus."):
+            self.assertEqual(A(d)[0], "AMBIGUOUS", d)
+            self.assertIn("Needs review — work-authorization wording", A(d)[1])
+        # nothing stated -> retained
+        self.assertEqual(A("Python and SQL. Bachelor's degree."), ("NOT_STATED", "Not stated (unverified)"))
+
+    def test_work_authorization_in_full_runs(self):
+        c.run(TestRunBehaviour.SRC[:1], self.now, fetch=lambda s, seen: [])
+        r = c.run(TestRunBehaviour.SRC[:1], self.now, fetch=lambda s, seen: [
+            J("Data Science Intern", desc=TECH + " Must be a U.S. citizen.", jid=1),                     # excluded
+            J("Software Engineer Intern", desc=TECH + " Active Secret clearance required.", jid=2),      # excluded
+            J("Machine Learning Intern", desc=TECH + " We do not offer visa sponsorship.", jid=3),       # kept, flagged
+            J("Data Analyst Intern", desc=TECH + " Must be authorized to work in the United States.", jid=4),  # kept
+            J("Data Engineer Intern", desc=TECH + " This role is subject to ITAR; applicants must be U.S. persons.", jid=5),  # review
+            J("AI Engineer Intern", jid=6)])                                                          # nothing stated, kept
+        self.assertEqual(r["excluded"]["Excluded — Citizenship/Clearance"], 2)
+        new = {n["title"]: n for n in r["new"]}
+        self.assertEqual(sorted(new), ["AI Engineer Intern", "Data Analyst Intern", "Machine Learning Intern"])
+        self.assertEqual(new["Machine Learning Intern"]["work_auth"], "Included — No Sponsorship (does not offer visa sponsorship)")
+        self.assertEqual(new["AI Engineer Intern"]["work_auth"], "Not stated (unverified)")
+        self.assertEqual([n["title"] for n in r["review"]], ["Data Engineer Intern"])
+        self.assertIn("work-authorization wording needs review", r["review"][0]["reason"])
+        md = c.write_report(r)
+        self.assertIn("Excluded — Citizenship/Clearance: 2", md)
+        self.assertIn("Included — No Sponsorship: 1 posting(s)", md)
+
+    def test_background_check_setting(self):
+        self.assertEqual(rel.auth_assessment("Background check required.")[0], "AMBIGUOUS")
+        with mock.patch.object(rel, "REVIEW_ON_BACKGROUND_CHECK", False):
+            self.assertEqual(rel.auth_assessment("Background check required.")[0], "NOT_STATED")
 
     def test_regions(self):
         self.assertEqual(rel.region("Alpharetta, GA"), "Atlanta metro")
