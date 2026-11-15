@@ -565,6 +565,28 @@ class TestQuietRunsAndHousekeeping(TempState):
         self.assertEqual([n["title"] for n in r2["new"]], ["ML Intern"])           # no repeat across checks
         self.assertTrue((self.tmp / f"reports/{r1['stamp']}.csv").exists() and (self.tmp / f"reports/{r2['stamp']}.csv").exists())
 
+    def test_discover_writes_incrementally_and_resumes(self):
+        prog = self.tmp / "state/discover_progress.json"
+        out = self.tmp / "discovered.csv"
+        companies = [f"Co{i}" for i in range(6)]
+        probe = lambda name: [dict(company=name, ats="greenhouse", slug=name.lower(), board_name=name, name_match="yes")]
+        clock = iter([0, 0, 0, 0, 10_000] + [10_000] * 50)            # time budget runs out after the first few starts
+        with mock.patch.object(c, "PROGRESS", prog), contextlib.redirect_stdout(io.StringIO()):
+            fin1, _, rem1 = c.discover_all(companies, {}, out, budget_minutes=1, workers=1, probe=probe, now=lambda: next(clock))
+            self.assertGreater(rem1, 0)
+            rows1 = list(csv.DictReader(open(out)))
+            self.assertEqual(len(rows1), fin1)                          # results saved even though the run stopped early
+            fin2, _, rem2 = c.discover_all(companies, {}, out, budget_minutes=60, workers=3, probe=probe)
+        self.assertEqual(rem2, 0); self.assertEqual(fin1 + fin2, 6)    # second run resumed, no company probed twice
+        self.assertEqual(sorted(r["company"] for r in csv.DictReader(open(out))), companies)
+
+    def test_failed_request_without_retry_does_not_sleep(self):
+        with mock.patch.object(c.urllib.request, "urlopen", side_effect=ConnectionError("x")), \
+             mock.patch.object(c.time, "sleep") as sl:
+            with self.assertRaises(ConnectionError):
+                c.http_json("https://example.invalid", retries=0)
+        sl.assert_not_called()
+
     def test_discover_workday_finds_site(self):
         def poster(url):
             if url == "https://acme.wd5.myworkdayjobs.com/wday/cxs/acme/AcmeCareers/jobs": return {"total": 42}
