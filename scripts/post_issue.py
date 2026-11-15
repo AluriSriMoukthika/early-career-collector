@@ -37,28 +37,39 @@ def truncate(body, link):
     return cut + f"\n\n*Report shortened to fit GitHub's issue size limit. Full report: {link}*\n"
 
 def build_report_issue(date, repo, owner, run_url, server="https://github.com"):
+    """Returns (title, body), or (None, None) when there is nothing to report."""
     blob = f"{server}/{repo}/blob/main/reports"
-    md_path, sm_path = REPORTS / f"{date}.md", REPORTS / f"{date}-summary.json"
-    if not md_path.exists() or not sm_path.exists():
+    latest = json.loads((REPORTS / "latest.json").read_text()) if (REPORTS / "latest.json").exists() else {}
+    stamp = latest.get("stamp", "")
+    this_run = latest.get("run_id", "") == os.environ.get("GITHUB_RUN_ID", "")      # not a stale file from an earlier run
+    md_path, sm_path = REPORTS / f"{stamp}.md", REPORTS / f"{stamp}-summary.json"
+    if not stamp or not this_run or not md_path.exists() or not sm_path.exists():
         title = f"{TITLE_PREFIX} {date} - COLLECTOR DID NOT FINISH"
         body = (f"@{owner} the collector did not produce a report today, so this is **not** a statement that "
                 f"nothing new was posted.\n\nOpen the run log to see what went wrong: {run_url}\n")
         return title, body
     sm = json.loads(sm_path.read_text())
+    if not should_post(sm):
+        return None, None
     tag = ""
     if sm["ok"] == 0:
         tag = " [RUN FAILED]"
     elif sm["failed"]:
         tag = f" [{sm['failed']} sources failed]"
-    title = f"{TITLE_PREFIX} {date} - {sm['new']} new, {sm['review']} to review{tag}"
-    links = [f"Full list (CSV): {blob}/{date}.csv"]
-    if (REPORTS / f"{date}-unclassified.csv").exists():
-        links.append(f"Unclassified postings: {blob}/{date}-unclassified.csv")
-    if (REPORTS / f"baseline-{date}.md").exists():
-        links.append(f"Existing openings recorded today (not new): {blob}/baseline-{date}.md")
+    title = f"{TITLE_PREFIX} {date} {stamp[-4:-2]}:{stamp[-2:]} - {sm['new']} new, {sm['review']} to review{tag}"
+    links = [f"Full list (CSV): {blob}/{stamp}.csv"]
+    if (REPORTS / f"{stamp}-unclassified.csv").exists():
+        links.append(f"Unclassified postings: {blob}/{stamp}-unclassified.csv")
+    if (REPORTS / f"baseline-{stamp}.md").exists():
+        links.append(f"Existing openings recorded this run (not new): {blob}/baseline-{stamp}.md")
     links.append(f"Run log: {run_url}")
     body = md_path.read_text() + "\n---\n" + "\n".join(f"- {l}" for l in links) + f"\n\ncc @{owner}\n"
-    return title, truncate(body, f"{blob}/{date}.md")
+    return title, truncate(body, f"{blob}/{stamp}.md")
+
+def should_post(sm):
+    """Post only when there is something to act on: new/needs-review roles, failed sources,
+    or a feed that suddenly returned 0 jobs. Quiet runs create no issue."""
+    return bool(sm["new"] or sm["review"] or sm["failed"] or sm.get("zero_job_warnings"))
 
 def build_sample_issue(owner, run_url):
     title = f"{TITLE_PREFIX} - TEST NOTIFICATION (sample data, not real jobs)"
@@ -77,11 +88,16 @@ def build_sample_issue(owner, run_url):
         "If this arrived by email, notifications are working. You can close this issue."])
     return title, body
 
-def close_previous(repo, keep_number):
-    """Close earlier open report issues so the Issues tab only shows the latest one."""
+def close_previous(repo, keep_number, now=None, days=7):
+    """Close report issues older than `days` so the Issues tab stays tidy without closing
+    reports you may not have read yet (there can be several per day)."""
+    now = now or dt.datetime.now(dt.timezone.utc)
     closed = 0
     for it in api("GET", f"/repos/{repo}/issues?state=open&per_page=100&creator=github-actions%5Bbot%5D"):
         if it.get("pull_request") or it["number"] == keep_number or not it["title"].startswith(TITLE_PREFIX):
+            continue
+        created = it.get("created_at")
+        if created and (now - dt.datetime.fromisoformat(created.replace("Z", "+00:00"))).days < days:
             continue
         if "TEST NOTIFICATION" in it["title"]:
             continue
@@ -99,6 +115,9 @@ def main(argv):
     else:
         date = dt.datetime.now(NY).date().isoformat()
         title, body = build_report_issue(date, repo, owner, run_url, server)
+        if title is None:
+            print("Nothing new and relevant, and no source failures: no issue created.")
+            return 0
     issue = api("POST", f"/repos/{repo}/issues", {"title": title, "body": body, "assignees": [owner]})
     print(f"Created issue #{issue['number']}: {issue.get('html_url')}")
     if mode != "sample":

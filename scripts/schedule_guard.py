@@ -1,44 +1,59 @@
 #!/usr/bin/env python3
 """Decides whether this workflow trigger should run the collector.
 
-GitHub cron is UTC-only, and scheduled runs can start late or be dropped entirely (this
-happened on 2026-11-15: no trigger fired at all). The workflow therefore fires every hour at :50
-from 11:50 to 23:50 UTC (winter 06:50-18:50, summer 07:50-19:50 New York time).
-This guard lets the FIRST trigger at or after 07:40 New York time run, and skips every later
-trigger once state/last_run.json records today's date. There is no late cut-off: a late report
-is better than none. Manual runs (workflow_dispatch) always run.
+Target check times (America/New_York): 08:00, 11:00, 14:00, 17:00, 20:00.
+GitHub cron is UTC-only and runs can be delayed or dropped, so the workflow fires at :07 past
+BOTH the winter (UTC-5) and summer (UTC-4) conversions of every slot:
+    cron "7 0,1,12,13,15,16,18,19,21,22 * * *"
+In any season one trigger of each pair lands ~7 minutes after the slot; the other acts as a
+backup about 1 hour later (summer) or about 2 hours later (winter, just before the next slot). The guard maps the trigger time to the most recent slot
+and runs only if that slot has not run yet (state/last_run.json). Times are approximate.
+Manual runs (workflow_dispatch) always run.
 """
 import datetime as dt, json, os, sys
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 NY = ZoneInfo("America/New_York")
-WINDOW_START = dt.time(7, 40)
+SLOTS = (8, 11, 14, 17, 20)
 LAST = Path(__file__).resolve().parent.parent / "state" / "last_run.json"
 
-def should_run(now_utc, last_run_date, event):
-    if event == "workflow_dispatch":
-        return True, "manual run"
+def current_slot(now_utc):
+    """Most recent slot at or before now, as 'YYYY-MM-DDTHH' in New York time."""
     local = now_utc.astimezone(NY)
-    if last_run_date == local.date().isoformat():
-        return False, f"already ran today ({last_run_date})"
-    if local.time() < WINDOW_START:
-        return False, f"before 07:40 New York time (now {local:%H:%M %Z})"
-    return True, f"scheduled run at {local:%H:%M %Z}"
+    past = [h for h in SLOTS if local.hour >= h]
+    if past:
+        return f"{local.date().isoformat()}T{past[-1]:02d}"
+    return f"{(local.date() - dt.timedelta(days=1)).isoformat()}T{SLOTS[-1]:02d}"   # before 08:00 -> yesterday 20:00
 
-def mark_done(now_utc=None):
+def should_run(now_utc, last_slot, event):
+    slot = current_slot(now_utc)
+    if event == "workflow_dispatch":
+        return True, slot, "manual run"
+    if last_slot == slot:
+        return False, slot, f"slot {slot} already ran"
+    if last_slot and last_slot > slot:
+        return False, slot, f"a later slot ({last_slot}) already ran"
+    local = now_utc.astimezone(NY)
+    return True, slot, f"running slot {slot} at {local:%H:%M %Z}"
+
+def read_last():
+    if not LAST.exists():
+        return None
+    d = json.loads(LAST.read_text())
+    return d.get("slot")            # older files only had "date" -> treated as no slot
+
+def mark_done(slot, now_utc=None):
     now_utc = now_utc or dt.datetime.now(dt.timezone.utc)
     LAST.parent.mkdir(exist_ok=True)
-    LAST.write_text(json.dumps({"date": now_utc.astimezone(NY).date().isoformat(),
-                                "finished_utc": now_utc.isoformat(timespec="seconds")}))
+    LAST.write_text(json.dumps({"slot": slot, "date": slot[:10], "finished_utc": now_utc.isoformat(timespec="seconds")}))
 
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "mark-done":
-        mark_done(); sys.exit(0)
-    last = json.loads(LAST.read_text()).get("date") if LAST.exists() else None
-    ok, why = should_run(dt.datetime.now(dt.timezone.utc), last, os.environ.get("GITHUB_EVENT_NAME", ""))
-    print(f"run={'true' if ok else 'false'} ({why})")
+        mark_done(sys.argv[2] if len(sys.argv) > 2 else current_slot(dt.datetime.now(dt.timezone.utc))); sys.exit(0)
+    ok, slot, why = should_run(dt.datetime.now(dt.timezone.utc), read_last(), os.environ.get("GITHUB_EVENT_NAME", ""))
+    print(f"run={'true' if ok else 'false'} slot={slot} ({why})")
     out = os.environ.get("GITHUB_OUTPUT")
     if out:
         with open(out, "a") as f:
-            f.write(f"run={'true' if ok else 'false'}\n")
+            f.write(f"run={'true' if ok else 'false'}\nslot={slot}\n")
