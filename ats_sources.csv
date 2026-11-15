@@ -67,5 +67,5 @@ OneTrust,greenhouse,onetrust,,,1,UNTESTED,,2026-11-15 (discover on GitHub),Atlan
 Salesloft,greenhouse,salesloft,,,1,UNTESTED,,2026-11-15 (discover on GitHub),Atlanta HQ; board name matched
 FullStory,ashby,fullstory,,,1,UNTESTED,11,2026-11-15 (discover on GitHub),Atlanta HQ; company named in postings
 Greenlight Financial Technology,lever,greenlight,,,1,UNTESTED,16,2026-11-15 (discover on GitHub),Atlanta HQ; confirmed by user 2026-11-15
-Flock Safety,ashby,flock,,,1,UNTESTED,11,2026-11-15 (discover on GitHub),Atlanta HQ; confirmed by user 2026-11-15
+Flock Safety,ashby,flock,,,0,FAILED,11,2026-11-15 (user check),"WRONG COMPANY: jobs.ashbyhq.com/flock is FLOCK (UK insurance, London/Bristol/Leeds/Manchester), not Flock Safety. Flock Safety feed still unknown."
 Applied Intuition,ashby,applied,,,1,UNTESTED,325,2026-11-15 (discover on GitHub),Replaces failed greenhouse:appliedintuition; confirmed by user 2026-11-15
