@@ -166,6 +166,14 @@ def work_auth(desc):
     found = [t for t, rx in AUTH_RULES if rx.search(desc or "")]
     return "; ".join(found) if found else "Not stated (unverified)"
 
+def title_unrelated(title):
+    """True when the title alone shows the role is outside the profile (e.g. store, driver, warehouse),
+    so fetching its full description would be wasted."""
+    title = title or ""
+    if IT_TECHNICIAN.search(title) or any(rx.search(title) for _, rx in FAMILIES):
+        return False
+    return bool(UNRELATED_TITLE.search(title))
+
 def assess(job):
     title = (job.get("title") or "").strip()
     desc = job.get("desc") or ""

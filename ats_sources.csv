@@ -56,3 +56,16 @@ Snowflake,ashby,snowflake,,,1,WORKING,373,2026-11-10 (browser),found by name pro
 Cursor (Anysphere),ashby,cursor,,,1,WORKING,115,2026-11-10 (browser),found by name probe; company named in postings
 Federal Reserve Bank of Atlanta,workday,rb,rb.wd5.myworkdayjobs.com,FRS,1,UNTESTED,,,"URL from search (official FRS careers site, all Reserve Banks); Atlanta roles appear via location"
 Florence Healthcare,greenhouse,florencehealthcare,,,1,UNTESTED,,,Greenhouse board seen in search
+Truist,workday,truist,truist.wd1.myworkdayjobs.com,Careers,1,UNTESTED,1374,2026-11-15 (discover on GitHub),Atlanta-area; tenant = company name
+Equifax,workday,equifax,equifax.wd5.myworkdayjobs.com,External,1,UNTESTED,154,2026-11-15 (discover on GitHub),Atlanta HQ; host also seen in search
+Manhattan Associates,workday,manh,manh.wd5.myworkdayjobs.com,External,1,UNTESTED,39,2026-11-15 (discover on GitHub),Atlanta HQ; MANH = ticker
+Genuine Parts Company,workday,genpt,genpt.wd1.myworkdayjobs.com,Careers,1,UNTESTED,2000,2026-11-15 (discover on GitHub),Atlanta HQ; GPC ticker; many store roles (filtered by title)
+HD Supply,workday,hdsupply,hdsupply.wd1.myworkdayjobs.com,External,1,UNTESTED,314,2026-11-15 (discover on GitHub),Atlanta HQ
+Global Payments,workday,tsys,tsys.wd1.myworkdayjobs.com,tsys,1,UNTESTED,506,2026-11-15 (discover on GitHub),TSYS = Global Payments unit (Columbus GA / Atlanta)
+Calendly,greenhouse,calendly,,,1,UNTESTED,,2026-11-15 (discover on GitHub),Atlanta HQ; board name matched
+OneTrust,greenhouse,onetrust,,,1,UNTESTED,,2026-11-15 (discover on GitHub),Atlanta HQ; board name matched
+Salesloft,greenhouse,salesloft,,,1,UNTESTED,,2026-11-15 (discover on GitHub),Atlanta HQ; board name matched
+FullStory,ashby,fullstory,,,1,UNTESTED,11,2026-11-15 (discover on GitHub),Atlanta HQ; company named in postings
+Greenlight Financial Technology,lever,greenlight,,,1,UNTESTED,16,2026-11-15 (discover on GitHub),Atlanta HQ; confirmed by user 2026-11-15
+Flock Safety,ashby,flock,,,1,UNTESTED,11,2026-11-15 (discover on GitHub),Atlanta HQ; confirmed by user 2026-11-15
+Applied Intuition,ashby,applied,,,1,UNTESTED,325,2026-11-15 (discover on GitHub),Replaces failed greenhouse:appliedintuition; confirmed by user 2026-11-15

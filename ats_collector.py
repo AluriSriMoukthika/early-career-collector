@@ -305,6 +305,8 @@ def fetch_workday(src, seen_ids=frozenset(), today=None):
         if path in tagged:
             typ, why = tagged[path]
             meta["facet"] = "co-op" if typ == "COOP" else why.split("=", 1)[1]
+        elif path not in seen_ids and relevance.title_unrelated(p.get("title", "")):
+            pass                                   # e.g. store/driver/warehouse roles: rejected on title, no detail call
         elif path not in seen_ids and details < WORKDAY_DETAIL_CAP:
             try:
                 info = http_json(f"{base}{path}").get("jobPostingInfo", {})
@@ -652,15 +654,32 @@ def slug_candidates(name):
 def _fast_get(url):
     return http_json(url, timeout=12, retries=0)
 
+NAME_STOP = r"\b(inc|corp|corporation|company|co|group|the|holdings|international|us|usa|llc|ltd|plc|and)\b"
+
+def core_name(name):
+    """'Genuine Parts Company' -> 'genuineparts'; '(US)' and suffixes removed."""
+    return norm(re.sub(NAME_STOP, " ", re.sub(r"\(.*?\)", " ", (name or "").replace("&", " and ")), flags=re.I))
+
+def board_name_matches(company, board):
+    """Greenhouse board name must be the company's name, not just share its first word
+    (rejects 'Northside Veterinary Clinic' for Northside Hospital, 'General Interest' for General Mills)."""
+    c, b = core_name(company), core_name(board)
+    if not c or not b:
+        return False
+    return c == b or c in b or (b in c and len(b) >= 0.8 * len(c))
+
+def text_names_company(company, text):
+    """Lever/Ashby give no company name: require the full company name in the posting text."""
+    return core_name(company) in norm(text)
+
 def discover(companies, getter=_fast_get):
     """Probe public board endpoints for each company name. Returns candidate rows (never auto-enabled)."""
     found = []
     for name in companies:
-        first = norm(re.split(r"[ (]", name)[0])
         for slug in slug_candidates(name):
             try:
                 b = getter(f"https://boards-api.greenhouse.io/v1/boards/{slug}")
-                ok = first[:5] in norm(b.get("name"))
+                ok = board_name_matches(name, b.get("name"))
                 found.append(dict(company=name, ats="greenhouse", slug=slug, board_name=b.get("name"),
                                   name_match="yes" if ok else "NO - check"))
             except Exception:
@@ -668,7 +687,7 @@ def discover(companies, getter=_fast_get):
             try:
                 js = getter(f"https://api.ashbyhq.com/posting-api/job-board/{slug}")
                 jobs = js.get("jobs", [])
-                ok = any(first[:5] in norm(j.get("descriptionPlain", "")[:3000]) for j in jobs[:5])
+                ok = any(text_names_company(name, j.get("descriptionPlain", "")[:5000]) for j in jobs[:5])
                 if jobs:
                     found.append(dict(company=name, ats="ashby", slug=slug, board_name=f"{len(jobs)} jobs",
                                       name_match="yes" if ok else "NO - check"))
@@ -676,7 +695,7 @@ def discover(companies, getter=_fast_get):
                 pass
             try:
                 js = getter(f"https://api.lever.co/v0/postings/{slug}?mode=json")
-                ok = any(first[:5] in norm((j.get("descriptionPlain") or "")[:3000]) for j in js[:5])
+                ok = any(text_names_company(name, (j.get("descriptionPlain") or "")[:5000] + (j.get("additionalPlain") or "")) for j in js[:5])
                 if js:
                     found.append(dict(company=name, ats="lever", slug=slug, board_name=f"{len(js)} jobs",
                                       name_match="yes" if ok else "NO - check"))
