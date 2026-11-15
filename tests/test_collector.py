@@ -587,6 +587,37 @@ class TestQuietRunsAndHousekeeping(TempState):
                 c.http_json("https://example.invalid", retries=0)
         sl.assert_not_called()
 
+    def test_discover_name_check_rejects_real_false_positives(self):
+        # board names returned by the 2026-11-15 discover run on GitHub
+        reject = [("Northside Hospital", "Northside Veterinary Clinic"), ("General Mills", "General Interest "),
+                  ("Lowe's", "Lowe Mechanical Services"), ("Oliver Wyman", "OLIVER"), ("Charles Schwab", "charles"),
+                  ("Genuine Parts Company", "Genuine"), ("Chicago Trading Company", "CTC Lateral - Website & LinkedIn")]
+        accept = [("Calendly", "Calendly"), ("OneTrust", "OneTrust"), ("Salesloft", "Salesloft"),
+                  ("DoorDash", "DoorDash USA"), ("Appian", "Appian Corporation "), ("Samsung Semiconductor (US)", "Samsung Semiconductor")]
+        for co, board in reject:
+            self.assertFalse(c.board_name_matches(co, board), (co, board))
+        for co, board in accept:
+            self.assertTrue(c.board_name_matches(co, board), (co, board))
+        self.assertFalse(c.text_names_company("Applied Materials", "At Applied Intuition we build autonomy software"))
+        self.assertTrue(c.text_names_company("Applied Intuition", "At Applied Intuition we build autonomy software"))
+        self.assertFalse(c.text_names_company("Capital One", "Capital Rx is a health tech company"))
+
+    def test_workday_skips_detail_for_unrelated_titles(self):
+        posts = [{"title": t, "externalPath": f"/job/{i}", "locationsText": "Atlanta, GA", "postedOn": "Posted Today"}
+                 for i, t in enumerate(["Retail Store Associate", "Delivery Driver", "Warehouse Associate", "Data Analyst I"])]
+        detail_calls = []
+        def fake(url, payload=None):
+            if payload is None:
+                detail_calls.append(url)
+                return {"jobPostingInfo": {"jobDescription": "SQL, Python, Tableau; 0-1 years", "country": {"descriptor": "United States of America"}}}
+            return {"total": 4, "facets": [], "jobPostings": posts}
+        with mock.patch.object(c, "http_json", side_effect=fake), mock.patch.object(c.time, "sleep"):
+            jobs = list(c.fetch_workday({"wd_host": "g.wd1.myworkdayjobs.com", "slug": "g", "wd_site": "S"}, today=dt.date(2026, 11, 15)))
+        self.assertEqual(len(detail_calls), 1)                                   # only the Data Analyst I posting
+        self.assertTrue(detail_calls[0].endswith("/job/3"))
+        self.assertFalse(any(j["meta"].get("_detail_skipped") for j in jobs))     # skipped ones are not deferred either
+        self.assertEqual(rel.assess(jobs[0])["relevance"], "UNRELATED")
+
     def test_discover_workday_finds_site(self):
         def poster(url):
             if url == "https://acme.wd5.myworkdayjobs.com/wday/cxs/acme/AcmeCareers/jobs": return {"total": 42}
