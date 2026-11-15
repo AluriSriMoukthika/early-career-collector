@@ -84,7 +84,7 @@ Each entry shows the title, company, location, employment type, category, career
 GitHub pauses scheduled workflows in repos with no activity for 60 days. The daily history commit counts as activity, so this won't happen as long as runs keep succeeding.
 
 ## Adding companies (towards all 300)
-- **Discover:** go to Actions → Run workflow → mode **discover**. It also tries to find Workday career sites for the companies in `atlanta_candidates.csv`. It tries likely board names for every company in the master CSV that isn't configured yet, and writes `discovered_sources.csv`. Only rows with `name_match = yes` are safe to add. Copy them into `ats_sources.csv` with `enabled=1` and `live_status=UNTESTED`, then run **verify**.
+- **Discover:** go to Actions → Run workflow → mode **discover**. It also tries to find Workday career sites for the companies in `atlanta_candidates.csv`. Atlanta-area employers are probed first. Results are written as each company finishes, and a run stops starting new companies after 40 minutes (`DISCOVER_MAX_MINUTES`). Run **discover** again to continue: `state/discover_progress.json` remembers which companies are done. It tries likely board names for every company in the master CSV that isn't configured yet, and writes `discovered_sources.csv`. Only rows with `name_match = yes` are safe to add. Copy them into `ats_sources.csv` with `enabled=1` and `live_status=UNTESTED`, then run **verify**.
 - **Workday companies:** find the company's careers site URL in the form `https://<tenant>.wd<N>.myworkdayjobs.com/<site>`, then add a row `Company,workday,<tenant>,<tenant>.wd<N>.myworkdayjobs.com,<site>,1,UNTESTED,,,`.
 - **No public feed** (e.g. Google, Amazon, JPMorgan): use Visualping. See `visualping_pilot.csv`.
 

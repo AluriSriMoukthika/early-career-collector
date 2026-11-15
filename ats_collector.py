@@ -207,7 +207,8 @@ def http_json(url, payload=None, timeout=40, retries=2):
             last = e
         except Exception as e:  # network error / timeout / bad JSON
             last = e
-        time.sleep(2 * (attempt + 1))
+        if attempt < retries:              # pause only before an actual retry
+            time.sleep(2 * (attempt + 1))
     raise last
 
 def strip_html(s):
@@ -648,7 +649,10 @@ def slug_candidates(name):
     c = {norm(base), "".join(words)} | ({words[0]} if words and len(words[0]) >= 4 else set())
     return [x for x in c if len(x) >= 3]
 
-def discover(companies, getter=http_json):
+def _fast_get(url):
+    return http_json(url, timeout=12, retries=0)
+
+def discover(companies, getter=_fast_get):
     """Probe public board endpoints for each company name. Returns candidate rows (never auto-enabled)."""
     found = []
     for name in companies:
@@ -678,15 +682,15 @@ def discover(companies, getter=http_json):
                                       name_match="yes" if ok else "NO - check"))
             except Exception:
                 pass
-            time.sleep(0.2)
+            time.sleep(0.1)
     return found
 
-WD_HOSTS = ("wd1", "wd3", "wd5", "wd12", "wd103", "wd501")
-WD_SITE_GUESSES = ("External", "Careers", "careers", "External_Careers", "{t}", "{t}_Careers", "{t}Careers", "{T}")
+WD_HOSTS = ("wd5", "wd1", "wd3", "wd12", "wd103", "wd501")     # most common first; stops at the first hit
+WD_SITE_GUESSES = ("External", "Careers", "{t}", "External_Careers", "{T}Careers")
 
 def _wd_site_from_root(host, opener=None):
     """Workday career-site roots usually redirect to /<lang>/<site> or /<site>; return <site> or None."""
-    opener = opener or (lambda url: urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=15))
+    opener = opener or (lambda url: urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=8))
     try:
         with opener(f"https://{host}/") as r:
             final = r.geturl()
@@ -698,7 +702,7 @@ def _wd_site_from_root(host, opener=None):
 
 def discover_workday(company, tenants, poster=None, root_site=_wd_site_from_root):
     """Find a working Workday career site for any of the tenant guesses. Returns candidate rows."""
-    poster = poster or (lambda url: http_json(url, {"appliedFacets": {}, "limit": 1, "offset": 0, "searchText": ""}, timeout=15, retries=0))
+    poster = poster or (lambda url: http_json(url, {"appliedFacets": {}, "limit": 1, "offset": 0, "searchText": ""}, timeout=8, retries=0))
     found = []
     for t in tenants:
         for wd in WD_HOSTS:
@@ -719,6 +723,50 @@ def discover_workday(company, tenants, poster=None, root_site=_wd_site_from_root
             time.sleep(0.2)
     return found
 
+DISCOVER_FIELDS = ["company", "ats", "slug", "wd_host", "wd_site", "board_name", "name_match"]
+PROGRESS = STATE / "discover_progress.json"
+
+def discover_all(todo, wd_tenants, out_csv, budget_minutes=None, workers=8, probe=None, now=time.monotonic):
+    """Probe companies in parallel, append results to out_csv as each company finishes, and record
+    progress in state/discover_progress.json so a later run resumes where this one stopped.
+    Stops starting new companies after `budget_minutes` (default DISCOVER_MAX_MINUTES or 40)."""
+    import concurrent.futures as cf
+    budget = 60 * float(budget_minutes if budget_minutes is not None else os.environ.get("DISCOVER_MAX_MINUTES", "40"))
+    done = load_json(PROGRESS, {})
+    queue = [c for c in todo if c not in done]
+    probe = probe or (lambda name: discover([name]) + (discover_workday(name, wd_tenants[name]) if wd_tenants.get(name) else []))
+    new_file = not out_csv.exists()
+    start, found, finished = now(), 0, 0
+    with open(out_csv, "a", newline="", encoding="utf-8") as fh, cf.ThreadPoolExecutor(max_workers=workers) as ex:
+        w = csv.DictWriter(fh, fieldnames=DISCOVER_FIELDS, extrasaction="ignore")
+        if new_file:
+            w.writeheader()
+        pending, it = {}, iter(queue)
+        def submit_more():
+            while len(pending) < workers and now() - start < budget:
+                name = next(it, None)
+                if name is None:
+                    return
+                pending[ex.submit(probe, name)] = name
+        submit_more()
+        while pending:
+            fin, _ = cf.wait(list(pending), return_when=cf.FIRST_COMPLETED)
+            for f in fin:
+                name = pending.pop(f)
+                try:
+                    rows = f.result()
+                except Exception:
+                    rows = []
+                w.writerows(rows); fh.flush()
+                found += len(rows); finished += 1
+                done[name] = dt.date.today().isoformat()
+                save_json(PROGRESS, done)
+            submit_more()
+    remaining = len([c for c in todo if c not in done])
+    print(f"discover: probed {finished} companies this run, {found} candidate boards found, {remaining} still to probe"
+          + (" (time budget reached - run discover again to continue)" if remaining else ""))
+    return finished, found, remaining
+
 # ============================================================== main
 def main(argv=None):
     ap = argparse.ArgumentParser()
@@ -735,19 +783,17 @@ def main(argv=None):
         with open(a.sources, newline="", encoding="utf-8") as f:
             have = {r["company"] for r in csv.DictReader(f)}
         with open(a.master, newline="", encoding="utf-8") as f:
-            todo = [r["Company_Name"] for r in csv.DictReader(f) if r["Company_Name"] not in have]
-        rows = discover(todo)
+            master = [r for r in csv.DictReader(f) if r["Company_Name"] not in have]
+        wd = {}
         cand = HERE / "atlanta_candidates.csv"
         if cand.exists():
             with open(cand, newline="", encoding="utf-8") as f:
                 for r in csv.DictReader(f):
-                    if r["company"] in have or not r.get("workday_tenant_guesses"):
-                        continue
-                    rows += discover_workday(r["company"], [t.strip() for t in r["workday_tenant_guesses"].split(";") if t.strip()])
-        with open(HERE / "discovered_sources.csv", "w", newline="") as f:
-            w = csv.DictWriter(f, fieldnames=["company", "ats", "slug", "wd_host", "wd_site", "board_name", "name_match"], extrasaction="ignore")
-            w.writeheader(); w.writerows(rows)
-        print(f"{len(rows)} candidate boards written to discovered_sources.csv (review, then add to ats_sources.csv)")
+                    wd[r["company"]] = [t.strip() for t in (r.get("workday_tenant_guesses") or "").split(";") if t.strip()]
+        # Atlanta-area employers first, then everyone else
+        atl = [r["Company_Name"] for r in master if "Atlanta-metro" in r.get("Notes", "")]
+        todo = atl + [r["Company_Name"] for r in master if r["Company_Name"] not in atl]
+        discover_all(todo, wd, HERE / "discovered_sources.csv")
         return 0
     res = run(load_sources(a.sources))
     md = write_report(res)
