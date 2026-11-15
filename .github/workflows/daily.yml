@@ -1,9 +1,10 @@
 name: early-career-daily
 on:
   schedule:
-    # Hourly UTC triggers (GitHub can delay or drop scheduled runs). scripts/schedule_guard.py
-    # lets only the first trigger at/after 07:40 New York time run each day; the rest skip in ~15s.
-    - cron: "50 11-23 * * *"
+    # Five checks a day at about 08:00, 11:00, 14:00, 17:00 and 20:00 New York time.
+    # Each slot is triggered for both the winter (UTC-5) and summer (UTC-4) offset: one trigger is the main
+    # run, the other a backup ~1-2 hours later. scripts/schedule_guard.py runs each slot at most once.
+    - cron: "7 0,1,12,13,15,16,18,19,21,22 * * *"
   workflow_dispatch:
     inputs:
       mode:
@@ -20,7 +21,7 @@ concurrency:
 jobs:
   collect:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -44,9 +45,9 @@ jobs:
         if: steps.guard.outputs.run == 'true' && github.event.inputs.mode == 'verify'
         run: python update_master.py
 
-      - name: Mark today done (only if collection fully succeeded)
+      - name: Mark this check slot done (only if collection fully succeeded)
         if: steps.guard.outputs.run == 'true' && steps.collect.outcome == 'success' && (github.event.inputs.mode || 'run') == 'run'
-        run: python scripts/schedule_guard.py mark-done
+        run: python scripts/schedule_guard.py mark-done ${{ steps.guard.outputs.slot }}
 
       - name: Save history and reports
         if: always() && steps.guard.outputs.run == 'true'
@@ -73,6 +74,7 @@ jobs:
             reports/
             source_status.csv
           if-no-files-found: ignore
+          retention-days: 14
 
       - name: Fail the run if collection failed
         if: steps.collect.outcome == 'failure'
