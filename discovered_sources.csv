@@ -1,0 +1,29 @@
+company,ats,slug,wd_host,wd_site,board_name,name_match
+Global Payments,workday,tsys,tsys.wd1.myworkdayjobs.com,tsys,506 jobs,tenant name - check the site is the company's
+Truist,workday,truist,truist.wd1.myworkdayjobs.com,Careers,1374 jobs,tenant name - check the site is the company's
+Equifax,workday,equifax,equifax.wd5.myworkdayjobs.com,External,154 jobs,tenant name - check the site is the company's
+Manhattan Associates,workday,manh,manh.wd5.myworkdayjobs.com,External,39 jobs,tenant name - check the site is the company's
+Genuine Parts Company,greenhouse,genuine,,,Genuine,yes
+Genuine Parts Company,workday,genpt,genpt.wd1.myworkdayjobs.com,Careers,2000 jobs,tenant name - check the site is the company's
+Northside Hospital,greenhouse,northside,,,Northside Veterinary Clinic,yes
+HD Supply,workday,hdsupply,hdsupply.wd1.myworkdayjobs.com,External,314 jobs,tenant name - check the site is the company's
+Calendly,greenhouse,calendly,,,Calendly,yes
+OneTrust,greenhouse,onetrust,,,OneTrust,yes
+Salesloft,greenhouse,salesloft,,,Salesloft,yes
+FullStory,ashby,fullstory,,,11 jobs,yes
+Greenlight Financial Technology,lever,greenlight,,,16 jobs,yes
+Flock Safety,ashby,flock,,,11 jobs,yes
+Capital One,lever,capital,,,49 jobs,yes
+Charles Schwab,greenhouse,charles,,,charles,yes
+Chicago Trading Company,greenhouse,chicagotrading,,,CTC Lateral - Website & LinkedIn,NO - check
+Chicago Trading Company,greenhouse,chicago,,,Returners Job Board,NO - check
+Parker Hannifin,ashby,parker,,,13 jobs,yes
+General Mills,greenhouse,general,,,General Interest ,yes
+Lowe's,greenhouse,lowe,,,Lowe Mechanical Services,NO - check
+Oliver Wyman,lever,oliverwyman,,,2 jobs,NO - check
+Oliver Wyman,greenhouse,oliver,,,OLIVER,yes
+General Motors,greenhouse,general,,,General Interest ,yes
+General Dynamics,greenhouse,general,,,General Interest ,yes
+Blue Origin,lever,blue,,,13 jobs,yes
+Applied Materials,ashby,applied,,,325 jobs,yes
+Analog Devices,ashby,analog,,,29 jobs,yes
