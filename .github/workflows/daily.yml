@@ -1,11 +1,9 @@
 name: early-career-daily
 on:
   schedule:
-    # Three UTC triggers; scripts/schedule_guard.py lets only the first one inside the
-    # 07:40-12:00 New York window run (handles daylight saving time and late/dropped triggers).
-    - cron: "50 11 * * *"
-    - cron: "50 12 * * *"
-    - cron: "50 13 * * *"
+    # Hourly UTC triggers (GitHub can delay or drop scheduled runs). scripts/schedule_guard.py
+    # lets only the first trigger at/after 07:40 New York time run each day; the rest skip in ~15s.
+    - cron: "50 11-23 * * *"
   workflow_dispatch:
     inputs:
       mode:
