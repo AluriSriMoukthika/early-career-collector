@@ -1,4 +1,4 @@
-import contextlib, csv, datetime as dt, io, json, os, subprocess, sys, tempfile, unittest
+import contextlib, csv, datetime as dt, io, json, re, os, subprocess, sys, tempfile, unittest
 from pathlib import Path
 from unittest import mock
 from zoneinfo import ZoneInfo
@@ -435,14 +435,34 @@ class TestScheduleGuard(unittest.TestCase):
         self.assertTrue(g.should_run(jul(11, 50), None, "schedule")[0])    # 07:50 EDT
         self.assertFalse(g.should_run(jul(12, 50), "2027-07-15", "schedule")[0])
         self.assertTrue(g.should_run(jul(14, 40), None, "schedule")[0])    # 10:40 EDT - late trigger still runs
-        self.assertFalse(g.should_run(jul(16, 30), None, "schedule")[0])   # 12:30 - too late
+        self.assertTrue(g.should_run(jul(16, 50), None, "schedule")[0])    # 12:50 EDT - still runs if nothing ran yet
+        self.assertTrue(g.should_run(jan(23, 50), None, "schedule")[0])    # 18:50 EST - last trigger of the day
+        self.assertFalse(g.should_run(jan(23, 50), "2027-01-15", "schedule")[0])
         self.assertTrue(g.should_run(jan(3, 0), "2027-01-15", "workflow_dispatch")[0])
+
+    def test_dropped_morning_triggers_still_produce_report(self):
+        # 2026-11-15: GitHub fired nothing in the morning; the first trigger that does arrive must run
+        day = dt.date(2026, 11, 15)
+        fired = [16, 17]                                                      # only 11:50 and 12:50 EST arrive
+        last, ran = None, []
+        for hh in fired:
+            t = dt.datetime(day.year, day.month, day.day, hh, 50, tzinfo=self.U)
+            ok, _ = g.should_run(t, last, "schedule")
+            if ok:
+                ran.append(hh); last = t.astimezone(NY).date().isoformat()
+        self.assertEqual(ran, [16])
+
+    def test_workflow_cron_is_hourly(self):
+        wf = (ROOT / ".github/workflows/daily.yml").read_text()   # plain text: PyYAML is not on the runner
+        crons = re.findall(r'cron:\s*"([^"]+)"', wf)
+        self.assertEqual(crons, ["50 11-23 * * *"])
+        self.assertIn("issues: write", wf); self.assertIn("contents: write", wf)
 
     def test_dst_switch_days(self):
         # 2027-03-14 (spring forward) and 2027-11-07 (fall back): exactly one trigger inside the window runs first
         for day in (dt.date(2027, 3, 14), dt.date(2027, 11, 7), dt.date(2026, 11, 1)):
             last, ran = None, []
-            for hh in (11, 12, 13):
+            for hh in range(11, 24):                                          # hourly triggers 11:50-23:50 UTC
                 t = dt.datetime(day.year, day.month, day.day, hh, 50, tzinfo=self.U)
                 ok, _ = g.should_run(t, last, "schedule")
                 if ok:
