@@ -188,6 +188,8 @@ def is_us(location, country=""):
         p = CANADA_CA.sub("", part)
         if US_WORDS.search(p) or re.search(r",\s*(%s)\b" % "|".join(US_STATES), p):
             return True
+        if relevance.ATL_METRO.search(p) or relevance.GEORGIA.search(p):   # "Atlanta", "Alpharetta", "Savannah, GA" ...
+            return True
     if re.fullmatch(r"(remote|hybrid|anywhere|multiple locations?|various)", loc, re.I):
         return None
     return False
