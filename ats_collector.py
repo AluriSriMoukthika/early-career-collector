@@ -437,6 +437,13 @@ def run(sources, now=None, fetch=None):
             if a["phd_only"]:
                 res["excluded"]["PhD required"] = res["excluded"].get("PhD required", 0) + 1
                 continue
+            if a["auth_status"] == "EXCLUDE":            # explicit U.S. citizenship / security clearance requirement
+                res["excluded"]["Excluded — Citizenship/Clearance"] = res["excluded"].get("Excluded — Citizenship/Clearance", 0) + 1
+                continue
+            if a["auth_status"] == "AMBIGUOUS" and status == "CONFIRMED":
+                status, why = "REVIEW", f"{why}; work-authorization wording needs review"
+            if a["auth_status"] == "NO_SPONSORSHIP":
+                res["no_sponsorship_kept"] = res.get("no_sponsorship_kept", 0) + 1
             if status == "CONFIRMED" and a["relevance"] == "BORDERLINE":
                 status, why = "REVIEW", f"{why}; relevance uncertain"
             elif status == "REVIEW" and a["relevance"] == "BORDERLINE":
@@ -555,6 +562,8 @@ def write_report(res):
     if res["unclassified"]:
         L += ["", f"Unclassified US postings with no level information: {len(res['unclassified'])} - see "
                   f"reports/{st}-unclassified.csv (not shown here to keep alerts readable)."]
+    if res.get("no_sponsorship_kept"):
+        L += ["", f"Included — No Sponsorship: {res['no_sponsorship_kept']} posting(s) say they do not sponsor visas; kept and flagged."]
     if res["excluded"]:
         L += ["", "Excluded this run: " + ", ".join(f"{k}: {v}" for k, v in sorted(res["excluded"].items()))]
     md = "\n".join(L) + "\n"

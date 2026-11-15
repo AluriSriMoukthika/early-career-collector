@@ -9,7 +9,18 @@ Checks the public job feeds of the companies in `ats_sources.csv` (Greenhouse, L
    - **Skill evidence:** Python, SQL, PyTorch, scikit-learn, OpenCV, LangChain/LangGraph, LLMs, Spark/Airflow/dbt, Tableau/Power BI, Git, Linux, Docker/Kubernetes, cloud, MLOps, statistics and more. No job has to list them all.
    - **Unrelated work is rejected:** welding, assembly, manufacturing or mechanical technicians, warehouse, drivers, sales, retail, customer service, admin, HR/recruiting, accounting, legal and clinical roles. Industry doesn't matter: a data role at a factory or hospital is kept.
    - **PhD-only roles are excluded**, unless the posting accepts a BS/MS or equivalent experience.
-   - **Work-authorization restrictions are flagged** (no sponsorship, citizenship, clearance, export control). If a posting says nothing, it shows "Not stated (unverified)".
+   - **Work authorization** (`relevance.auth_assessment`):
+
+     | Posting says | Result |
+     |---|---|
+     | "Must be a U.S. citizen", "U.S. citizenship required", "U.S. citizens/nationals only" | **Excluded — Citizenship/Clearance** |
+     | "Active Secret/TS/TS-SCI clearance required", "must be eligible to obtain a … clearance" (U.S. clearances require citizenship) | **Excluded — Citizenship/Clearance** |
+     | "No visa sponsorship", "unable to sponsor", "sponsorship not available" | Kept: **Included — No Sponsorship** |
+     | "Must be authorized to work in the U.S.", "existing U.S. work authorization" | Kept: **Included — Existing U.S. work authorization required** |
+     | "U.S. person", export control, ITAR, "permanent work authorization", "security screening", "background check", "citizen **or** permanent resident", clearance only "preferred" | Kept, moved to **Needs review** |
+     | Nothing stated | Kept: "Not stated (unverified)" |
+
+     "Background check" is very common. To stop it moving roles to review, set `REVIEW_ON_BACKGROUND_CHECK = False` in `relevance.py`.
 3. **Result:**
    - **Confirmed** = early-career and relevant.
    - **Needs review** = relevant, but the level or fit is uncertain, e.g. "2 yrs" or no level stated.

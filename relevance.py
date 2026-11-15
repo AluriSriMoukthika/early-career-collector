@@ -67,13 +67,82 @@ PHD_REQUIRED = re.compile(r"(ph\.?\s?d\.?|doctoral degree|doctorate)[^.]{0,60}\b
                           r"(must|required to) (have|hold|possess)[^.]{0,30}(ph\.?\s?d|doctora)|"
                           r"(currently|actively) (enrolled|pursuing)[^.]{0,30}(ph\.?\s?d|doctora)|ph\.?\s?d\.? (candidate|student)s?\b", re.I)
 BS_MS_OK = re.compile(r"bachelor|master'?s|\bm\.?s\.?\b|\bb\.?s\.?\b|\bbs/ms\b|\bms/phd\b|ms or phd|equivalent (practical |professional )?experience", re.I)
-AUTH_RULES = [
-    ("No visa sponsorship", r"(not|unable to|will not|won't|cannot|can't|does not) (be able to )?(provide |offer |support )?(visa |immigration )?sponsor|without (the need for )?(current or future )?(visa )?sponsorship|sponsorship (is )?not available"),
-    ("U.S. citizenship required", r"(must be|requires?) (a )?u\.?s\.? citizen|u\.?s\.? citizenship (is )?required"),
-    ("Security clearance required", r"(active|current|ability to obtain)[^.]{0,30}(security )?clearance|\bts/sci\b|secret clearance"),
-    ("U.S. person (export control)", r"\bitar\b|export control|u\.?s\.? person"),
-]
-AUTH_RULES = [(t, re.compile(p, re.I)) for t, p in AUTH_RULES]
+# ------------------------------------------------------------------ work authorization
+# EXCLUDE: explicit U.S. citizenship / nationals-only / security-clearance requirements
+#          (U.S. clearances are only granted to U.S. citizens, so clearance eligibility implies citizenship).
+# NO_SPONSORSHIP / WORK_AUTH: kept and flagged.  AMBIGUOUS: kept but moved to Needs Review.
+REVIEW_ON_BACKGROUND_CHECK = True          # set False if "background check" moves too many roles to review
+CLEARANCE = (r"(secret|top[- ]secret|ts/sci|\bts\b|sci|dod|doe|public trust|q|l|security)[- ]?(level )?clearance|clearance (level )?\(?(secret|top secret|ts/sci)")
+CITIZEN_EXCLUDE = [re.compile(p, re.I) for p in (
+    r"must be (a )?(united states|u\.?s\.?) citizen(?!s? or)(?! or)",
+    r"(united states|u\.?s\.?) citizenship (is )?(required|mandatory|a requirement)",
+    r"requires? (united states|u\.?s\.?) citizenship",
+    r"(only|solely) (open to )?(united states|u\.?s\.?) (citizens|nationals)",
+    r"(united states|u\.?s\.?) (citizens|nationals) only",
+    r"must be (a )?(united states|u\.?s\.?) national",
+)]
+CLEARANCE_EXCLUDE = [re.compile(p, re.I) for p in (
+    rf"(active|current|existing|valid|interim)[^.;]{{0,25}}({CLEARANCE})",
+    rf"({CLEARANCE})[^.;]{{0,25}}(is |are )?(required|mandatory|needed)",
+    rf"must (have|hold|possess|maintain|be able to obtain|obtain)[^.;]{{0,40}}({CLEARANCE})",
+    rf"(eligib(le|ility)|ability|able) to (obtain|receive|be granted|hold)[^.;]{{0,30}}({CLEARANCE})",
+    r"\bts/sci\b",
+)]
+SOFTENERS = re.compile(r"preferred|a plus|is a bonus|nice to have|desired|desirable|advantageous|not required", re.I)
+NO_SPONSOR = [re.compile(p, re.I) for p in (
+    r"(not|unable to|will not|won't|cannot|can't|does not|do not|is not able to) (be able to )?(provide |offer |support |consider )?(visa |immigration |employment visa )?sponsor",
+    r"without (the need for )?(current or future |now or in the future )?(visa |immigration )?sponsorship",
+    r"sponsorship (is )?(not |un)available", r"no (visa |immigration )?sponsorship",
+)]
+WORK_AUTH = re.compile(r"(authori[sz]ed|eligible|legally (able|permitted)) to work in the (united states|u\.?s\.?)|existing (u\.?s\.? )?work authori[sz]ation", re.I)
+AMBIGUOUS = [(t, re.compile(p, re.I)) for t, p in (
+    ("U.S. person / export control", r"\bu\.?s\.? persons?\b|export control|export administration|\bitar\b|\bear\b(?= regulation| compliance)"),
+    ("permanent work authorization", r"permanent (work|employment) authori[sz]ation|permanently authori[sz]ed"),
+    ("citizen or permanent resident", r"(united states|u\.?s\.?) citizens?( or|,) (lawful )?(permanent residents?|green card)"),
+    ("security screening", r"security screening|security vetting|suitability (check|investigation)"),
+    ("background check", r"background (check|investigation|screening)"),
+    ("security clearance mentioned (not as a requirement)", CLEARANCE),
+)]
+
+def _sentences(text):
+    # "U.S." / "U.S.A." must not end a sentence ("Must be a U.S. citizen.")
+    text = re.sub(r"\b[Uu]\.\s?[Ss]\.(\s?[Aa]\.)?", "US", text or "")
+    text = re.sub(r"\b(e\.g|i\.e|etc|incl|approx)\.", r"\1", text, flags=re.I)
+    return [x for x in re.split(r"(?<=[.;!?])\s+|\n+", text) if x.strip()]
+
+def auth_assessment(desc):
+    """Returns (status, label). status: EXCLUDE | AMBIGUOUS | NO_SPONSORSHIP | WORK_AUTH | NOT_STATED."""
+    ambiguous, notes = [], []
+    for sent in _sentences(desc):
+        cit = next((rx for rx in CITIZEN_EXCLUDE if rx.search(sent)), None)
+        if cit and not re.search(r"or (lawful )?permanent resident|or green card|or (other )?authori[sz]ed", sent, re.I):
+            return "EXCLUDE", f"Excluded — Citizenship/Clearance: \"{cit.search(sent).group(0)}\""
+        clr = next((rx for rx in CLEARANCE_EXCLUDE if rx.search(sent)), None)
+        if clr:
+            if SOFTENERS.search(sent):
+                ambiguous.append("clearance mentioned as preferred")
+            else:
+                return "EXCLUDE", f"Excluded — Citizenship/Clearance: \"{clr.search(sent).group(0)}\""
+        for label, rx in AMBIGUOUS:
+            if rx.search(sent) and (label != "background check" or REVIEW_ON_BACKGROUND_CHECK):
+                ambiguous.append(label)
+    text = desc or ""
+    if any(rx.search(text) for rx in NO_SPONSOR):
+        notes.append("Included — No Sponsorship (does not offer visa sponsorship)")
+    elif WORK_AUTH.search(text):
+        notes.append("Included — Existing U.S. work authorization required")
+    if ambiguous:
+        amb = set(ambiguous)
+        if "clearance mentioned as preferred" in amb:
+            amb.discard("security clearance mentioned (not as a requirement)")
+        amb = sorted(amb)
+        return "AMBIGUOUS", "; ".join(notes + [f"Needs review — work-authorization wording: {', '.join(amb)}"])
+    if notes:
+        return ("NO_SPONSORSHIP" if "No Sponsorship" in notes[0] else "WORK_AUTH"), notes[0]
+    return "NOT_STATED", "Not stated (unverified)"
+
+def work_auth(desc):
+    return auth_assessment(desc)[1]
 
 def _required_text(desc):
     m = re.search(r"\bpreferred\b|nice[- ]to[- ]have|bonus|\bideal(ly)?\b", desc, re.I)
@@ -105,7 +174,8 @@ def assess(job):
     core = [s for s in skills if s in CORE]
     hw = len(set(m.group(0).lower() for m in HARDWARE.finditer(f"{title} {desc}")))
     edu, phd_only = education(title, desc)
-    out = dict(family=family or "Other technical", skills=skills, education=edu, phd_only=phd_only, auth=work_auth(desc))
+    auth_status, auth_label = auth_assessment(desc)
+    out = dict(family=family or "Other technical", skills=skills, education=edu, phd_only=phd_only, auth=auth_label, auth_status=auth_status)
     skill_txt = ", ".join(skills[:6]) if skills else "none listed"
     unrelated_title = None if IT_TECHNICIAN.search(title) else UNRELATED_TITLE.search(title)
 
