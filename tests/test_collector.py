@@ -71,6 +71,11 @@ class TestRealGreenhouseSample(unittest.TestCase):
         self.assertTrue(c.is_us(byid[8052050]["location"]["name"]))      # London...; New York, NY, United States; Singapore
         self.assertFalse(c.is_us(byid[7217699]["location"]["name"]))     # Gurugram
         self.assertTrue(c.is_us(byid[8192369]["location"]["name"]))      # Remote - United States
+        # Atlanta-area places written without a state (bug found 2026-11-15: Flock Safety showed 0 US jobs)
+        for loc in ("Atlanta", "Alpharetta", "Sandy Springs", "Kennesaw; Remote", "Peachtree Corners", "Marietta, Georgia", "Savannah, GA"):
+            self.assertTrue(c.is_us(loc), loc)
+        self.assertTrue(c.is_us("Marietta, OH"))
+        self.assertFalse(c.is_us("Toronto, ON, CA"))
 
 class TestClassification(unittest.TestCase):
     def test_coop_always_excluded(self):
