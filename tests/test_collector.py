@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT)); sys.path.insert(0, str(ROOT / "scripts"))
 import ats_collector as c
+import relevance as rel
 import schedule_guard as g
 import post_issue as pi
 
@@ -18,9 +19,13 @@ def gh_job(j):
     return dict(id=j["id"], title=j["title"], url="u", location=j["location"]["name"], country="",
                 posted=j["first_published"][:10], meta=meta, desc=c.strip_html(j.get("content", "")))
 
-def J(title, meta=None, desc="", loc="New York, NY", jid=None):
+TECH = ("You will analyze data with Python and SQL, build machine learning models with scikit-learn and PyTorch, "
+        "create dashboards in Tableau and apply statistics. Bachelor's or Master's in a quantitative field.")
+
+def J(title, meta=None, desc=None, loc="New York, NY", jid=None):
+    """Test posting. desc=None -> a realistic technical description (relevant to the profile)."""
     return dict(id=jid or title, title=title, url="https://x/" + title, location=loc, country="", posted="2026-11-09",
-                meta=meta or {}, desc=desc)
+                meta=meta or {}, desc=TECH if desc is None else desc)
 
 class TestRealGreenhouseSample(unittest.TestCase):
     """Expected outcomes for real postings captured live on 2026-11-10."""
@@ -69,10 +74,10 @@ class TestRealGreenhouseSample(unittest.TestCase):
 
 class TestClassification(unittest.TestCase):
     def test_coop_always_excluded(self):
-        for job in (J("Software Engineer Co-op (Spring 2027)"), J("Data Science Coop"),
-                    J("Engineering Student", {"Employment Type": "Co-op"}),
-                    J("Engineering Intern", {"facet": "co-op"}),
-                    J("Cooperative Education Student - IT")):
+        for job in (J("Software Engineer Co-op (Spring 2027)", desc=""), J("Data Science Coop", desc=""),
+                    J("Engineering Student", {"Employment Type": "Co-op"}, desc=""),
+                    J("Engineering Intern", {"facet": "co-op"}, desc=""),
+                    J("Cooperative Education Student - IT", desc="")):
             self.assertEqual(c.classify(job)[0], "EXCLUDED", job["title"])
 
     def test_coop_mention_in_description_is_flag_not_exclusion(self):
@@ -81,8 +86,8 @@ class TestClassification(unittest.TestCase):
 
     def test_keywordless_entry_roles_found(self):
         self.assertEqual(c.classify(J("Data Analyst", desc="0-1 years of relevant experience preferred"))[:2], ("CONFIRMED", "Entry-Level"))
-        self.assertEqual(c.classify(J("Software Engineer", {"Job Level": "IC1"}))[:2], ("CONFIRMED", "Entry-Level"))
-        self.assertEqual(c.classify(J("Software Engineer", {"employment type": "Intern"}))[:2], ("CONFIRMED", "Internship"))
+        self.assertEqual(c.classify(J("Software Engineer", {"Job Level": "IC1"}, desc=""))[:2], ("CONFIRMED", "Entry-Level"))
+        self.assertEqual(c.classify(J("Software Engineer", {"employment type": "Intern"}, desc=""))[:2], ("CONFIRMED", "Internship"))
         self.assertEqual(c.classify(J("Machine Learning Engineer", desc="1+ years of industry experience with Python"))[0], "CONFIRMED")
         self.assertEqual(c.classify(J("Business Analyst", desc="2+ years of experience in analytics"))[0], "REVIEW")
         self.assertEqual(c.classify(J("Software Engineer", desc="Open to recent graduates with a BS in CS."))[0], "REVIEW")
@@ -94,14 +99,14 @@ class TestClassification(unittest.TestCase):
                  "Junior Data Scientist": "Entry-Level", "Software Engineer - Early Career": "Early-Career Full-Time",
                  "Software Engineer I": "Entry-Level", "Graduate Development Program - Data": "Graduate Program", "Associate Product Manager": "Graduate Program"}
         for t, typ in cases.items():
-            self.assertEqual(c.classify(J(t))[:2], ("CONFIRMED", typ), t)
+            self.assertEqual(c.classify(J(t, desc=""))[:2], ("CONFIRMED", typ), t)
 
     def test_senior_excluded(self):
         for t in ("Senior Data Scientist", "Staff Software Engineer, New Grad Programs", "Engineering Manager, University Recruiting",
                   "Principal ML Engineer", "Product Manager", "Software Engineer III", "Lead Analyst", "Data Engineer 2"):
-            self.assertEqual(c.classify(J(t))[0], "EXCLUDED", t)
+            self.assertEqual(c.classify(J(t, desc=""))[0], "EXCLUDED", t)
         self.assertEqual(c.classify(J("Associate", desc="5+ years of experience in consulting"))[0], "EXCLUDED")
-        self.assertEqual(c.classify(J("Senior Associate"))[0], "EXCLUDED")
+        self.assertEqual(c.classify(J("Senior Associate", desc=""))[0], "EXCLUDED")
 
     def test_min_years(self):
         self.assertEqual(c.min_years("Requires 3-5 years of professional experience"), 3)
@@ -122,8 +127,8 @@ class TestClassification(unittest.TestCase):
         self.assertIsNone(c.min_years("Preferred: 2+ years of experience with Kubernetes"))   # only a preference
 
     def test_apprenticeship_is_entry_level_not_internship(self):
-        self.assertEqual(c.classify(J("Apprentice Welder"))[:2], ("CONFIRMED", "Entry-Level"))
-        self.assertEqual(c.classify(J("Apprentice Controls Technician"))[:2], ("CONFIRMED", "Entry-Level"))
+        self.assertEqual(c.classify(J("Apprentice Welder", desc=""))[:2], ("CONFIRMED", "Entry-Level"))
+        self.assertEqual(c.classify(J("Apprentice Controls Technician", desc=""))[:2], ("CONFIRMED", "Entry-Level"))
 
 class TempState(unittest.TestCase):
     def setUp(self):
@@ -136,12 +141,12 @@ class TestRunBehaviour(TempState):
     SRC = [dict(company="A", ats="greenhouse", slug="a"), dict(company="B", ats="lever", slug="b")]
 
     def test_first_run_is_baseline_then_new_only(self):
-        jobs = {"a": [J("SWE Intern 2027", jid=1), J("Senior SWE", jid=2), J("Data Analyst", desc="0-1 years experience", jid=3)],
+        jobs = {"a": [J("SWE Intern 2027", jid=1), J("Senior SWE", jid=2), J("Data Analyst", desc="0-1 years experience with SQL and Python", jid=3)],
                 "b": [J("Software Engineer, New Grad", jid=9, loc="Toronto, ON, CA")]}
         r1 = c.run(self.SRC, self.now, fetch=lambda s, seen: jobs[s["slug"]])
         self.assertEqual(r1["new"], []); self.assertEqual(len(r1["baseline"]), 2)    # Canada role skipped
         md = c.write_report(r1)
-        self.assertTrue((self.tmp / "reports/baseline-2026-11-10.md").exists())
+        self.assertTrue((self.tmp / f"reports/baseline-{r1['stamp']}.md").exists())
         self.assertIn("recorded as baseline (not emailed): 2", md)
         self.assertNotIn("SWE Intern 2027", md)                                   # existing openings never in the email body
         self.assertEqual(c.email_subject(r1), "[Early careers] 0 new, 0 to review - 2026-11-10")
@@ -163,8 +168,8 @@ class TestRunBehaviour(TempState):
         self.assertEqual(sorted(n["title"] for n in r["older"]), ["Old Intern", "WD Old Intern"])
         self.assertIn("no posting date", next(n for n in r["new"] if n["title"] == "Undated Intern")["reason"])
         md = c.write_report(r)
-        self.assertNotIn("Old Intern |", md)                                         # older postings are not in the email body
-        rows = list(csv.DictReader(open(self.tmp / f"reports/{r['date']}.csv")))
+        self.assertNotIn("**Old Intern**", md)                                       # older postings are not in the email body
+        rows = list(csv.DictReader(open(self.tmp / f"reports/{r['stamp']}.csv")))
         self.assertEqual(sum(1 for x in rows if x["status"] == "OLDER_THAN_WINDOW"), 2)  # ...but are kept in the CSV
 
     def test_missed_day_widens_window(self):
@@ -176,13 +181,13 @@ class TestRunBehaviour(TempState):
 
     def test_email_capped_at_10_per_company(self):
         c.run(self.SRC[:1], self.now, fetch=lambda s, seen: [])
-        jobs = [J(f"Technician Apprentice {i:02d}", jid=i) for i in range(25)]
+        jobs = [J(f"Junior Data Analyst {i:02d}", jid=i) for i in range(25)]
         r = c.run(self.SRC[:1], self.now, fetch=lambda s, seen: jobs)
         self.assertEqual(len(r["new"]), 25)
         md = c.write_report(r)
-        self.assertEqual(md.count("| A | Technician Apprentice"), 10)
+        self.assertEqual(md.count("- **Junior Data Analyst"), 10)
         self.assertIn("+15 more A roles in today's CSV", md)
-        self.assertEqual(len(list(csv.DictReader(open(self.tmp / f"reports/{r['date']}.csv")))), 25)   # nothing dropped
+        self.assertEqual(len(list(csv.DictReader(open(self.tmp / f"reports/{r['stamp']}.csv")))), 25)   # nothing dropped
 
     def test_new_source_added_later_gets_its_own_baseline(self):
         c.run(self.SRC[:1], self.now, fetch=lambda s, seen: [J("Intern A", jid=1)])
@@ -217,18 +222,23 @@ class TestRunBehaviour(TempState):
 
     def test_review_and_unclassified_routing(self):
         c.run(self.SRC[:1], self.now, fetch=lambda s, seen: [])
-        r = c.run(self.SRC[:1], self.now, fetch=lambda s, seen: [J("Business Analyst", desc="2+ years of experience", jid=1),
-                                                                  J("Software Engineer", jid=2), J("Support Engineer", loc="", jid=3)])
-        self.assertEqual(len(r["review"]), 1); self.assertEqual(len(r["unclassified"]), 2)
+        r = c.run(self.SRC[:1], self.now, fetch=lambda s, seen: [
+            J("Business Analyst", desc="2+ years of experience with SQL and Python", jid=1),   # level uncertain, relevant -> review
+            J("Software Engineer", jid=2),                                                    # relevant, no level stated -> review
+            J("Software Engineer", desc="Build great things for customers.", loc="", jid=3),  # no level, weak relevance -> unclassified
+            J("TIG Welder", desc="Entry level. TIG and MIG welding; read blueprints.", jid=4)])  # unrelated -> excluded
+        self.assertEqual(sorted(n["reason"].split(";")[0] for n in r["review"]), ["relevant role, experience level not stated", "requires 2 yrs experience"])
+        self.assertEqual(len(r["unclassified"]), 1)
+        self.assertEqual(r["excluded"].get("not relevant to profile"), 1)
         c.write_report(r)
-        self.assertTrue((self.tmp / f"reports/{r['date']}-unclassified.csv").exists())
-        self.assertIn("[US? unverified]", r["unclassified"][1]["location"])
+        self.assertTrue((self.tmp / f"reports/{r['stamp']}-unclassified.csv").exists())
+        self.assertIn("[US? unverified]", r["unclassified"][0]["location"])
 
     def test_deferred_postings_in_first_run_stay_baseline(self):
         def batch(n_deferred):
             jobs = [J("Engineering Intern", jid="a")]
             for i in range(n_deferred):
-                d = J("Program Analyst " + str(i), jid=f"d{i}"); d["meta"]["_detail_skipped"] = "yes"; jobs.append(d)
+                d = J("Data Analyst " + "abc"[i], jid=f"d{i}"); d["meta"]["_detail_skipped"] = "yes"; jobs.append(d)
             return jobs
         r1 = c.run(self.SRC[:1], self.now, fetch=lambda s, seen: batch(3))           # day 1: 3 deferred
         self.assertEqual(len(r1["baseline"]), 1)
@@ -256,7 +266,7 @@ class TestRunBehaviour(TempState):
 class TestEndToEndCLI(TempState):
     def test_cli_run_with_real_greenhouse_payload(self):
         payload = json.dumps({"jobs": [{k: v for k, v in j.items() if k != "board"} | {"absolute_url": f"https://x/{j['id']}"}
-                                       for j in FIX if j["board"] == "robinhood"]}).encode()
+                                       for j in FIX if j["board"] == "coinbase"]}).encode()
         class Resp:
             def __init__(s, b): s.b = b
             def read(s, *a): return s.b
@@ -266,15 +276,16 @@ class TestEndToEndCLI(TempState):
         def fake_urlopen(req, timeout=0):
             calls.append(req.full_url); return Resp(payload)
         src = self.tmp / "src.csv"
-        src.write_text("company,ats,slug,wd_host,wd_site,enabled\nRobinhood,greenhouse,robinhood,,,1\nOff,greenhouse,off,,,0\n")
+        src.write_text("company,ats,slug,wd_host,wd_site,enabled\nCoinbase,greenhouse,coinbase,,,1\nOff,greenhouse,off,,,0\n")
         with mock.patch.object(c.urllib.request, "urlopen", fake_urlopen), mock.patch.object(c, "maybe_email", return_value=False), \
              contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(c.main(["run", "--sources", str(src)]), 0)
-        self.assertEqual(calls, ["https://boards-api.greenhouse.io/v1/boards/robinhood/jobs?content=true"])   # disabled source skipped
+        self.assertEqual(calls, ["https://boards-api.greenhouse.io/v1/boards/coinbase/jobs?content=true"])
         base = list((self.tmp / "reports").glob("baseline-*.md"))[0].read_text()
-        self.assertIn("Customer Experience Associate, Pathway", base)   # keyword-less early role caught via metadata
-        self.assertIn("Fraud Operations Intern", base)
-        self.assertNotIn("Futures Risk Program Manager", base)
+        self.assertIn("Analytics Engineer Intern", base)
+        self.assertNotIn("Legal Operations Manager", base)
+        latest = json.loads((self.tmp / "reports/latest.json").read_text())
+        self.assertTrue((self.tmp / f"reports/{latest['stamp']}-summary.json").exists())
 
 class TestVerifyLabels(unittest.TestCase):
     def test_disabled_rows_not_called_untested(self):
@@ -292,13 +303,16 @@ class TestPostIssue(TempState):
     def setUp(self):
         super().setUp()
         p = mock.patch.object(pi, "REPORTS", self.tmp / "reports"); p.start(); self.addCleanup(p.stop)
+        e = mock.patch.dict(os.environ, {"GITHUB_RUN_ID": "1"}); e.start(); self.addCleanup(e.stop)
 
     def _report(self, fail=False):
         src = [dict(company="SpaceX", ats="greenhouse", slug="s"), dict(company="B", ats="lever", slug="b")]
         c.run(src, self.now, fetch=lambda s, seen: [])
         def f(s, seen):
             if fail and s["slug"] == "b": raise ConnectionError("down")
-            return [J(f"Apprentice Tech {i:02d}", jid=i) for i in range(12)] + [J("Business Analyst", desc="2+ years of experience", jid=99)]
+            atl = [J("Data Science Intern", jid=500, loc="Alpharetta, GA"), J("Software Engineer I", jid=501, loc="Savannah, GA")]
+            return [J(f"Junior Data Analyst {i:02d}", jid=i) for i in range(12)] + atl + \
+                   [J("Business Analyst", desc="2+ years of experience with SQL and Python", jid=99)]
         r = c.run(src, self.now, fetch=f)
         c.write_report(r)
         return r
@@ -306,12 +320,17 @@ class TestPostIssue(TempState):
     def test_report_issue_contents(self):
         self._report()
         title, body = pi.build_report_issue("2026-11-10", "me/repo", "me", "RUNURL")
-        self.assertEqual(title, "Early-career report 2026-11-10 - 24 new, 2 to review")
-        self.assertIn("| SpaceX | Apprentice Tech 00 |", body)            # company, title...
-        self.assertIn("https://x/Apprentice Tech 00", body)                 # ...and application link
-        self.assertIn("+2 more SpaceX roles", body)                          # 10-per-company cap (12 new) (12 new + 1 review)
-        self.assertIn("Needs your review", body)                             # uncertain roles visible
-        self.assertIn("https://github.com/me/repo/blob/main/reports/2026-11-10.csv", body)
+        self.assertEqual(title, "Early-career report 2026-11-10 08:00 - 28 new, 2 to review")
+        self.assertIn("- **Junior Data Analyst 00** - SpaceX", body)       # title + company
+        self.assertIn("Apply: https://x/Junior Data Analyst 00", body)       # direct application link
+        for field in ("Experience:", "Education:", "Work authorization:", "Why it matches:", "Posted:"):
+            self.assertIn(field, body)
+        self.assertIn("+2 more SpaceX roles", body)                          # 10-per-company cap (12 new)
+        self.assertIn("Needs your review", body)
+        idx = [body.index(h) for h in ("## 1. Atlanta area", "## 2. Elsewhere in Georgia",
+                                       "## 3. Elsewhere in the United States", "## 4. Needs your review")]
+        self.assertEqual(idx, sorted(idx))                                   # Atlanta, Georgia, US, then review
+        self.assertIn("https://github.com/me/repo/blob/main/reports/2026-11-10_0800.csv", body)
         self.assertIn("cc @me", body)
 
     def test_failed_sources_in_title_and_body(self):
@@ -355,6 +374,157 @@ class TestPostIssue(TempState):
             pi.main(["x", "sample"])
         self.assertEqual(len(calls), 1)
         self.assertIn("TEST NOTIFICATION", calls[0][1]["title"]); self.assertIn("sample data", calls[0][1]["body"])
+
+class TestRelevanceRealisticDescriptions(TempState):
+    """Realistic postings (paraphrased from typical ATS listings)."""
+    ACCEPT = [
+        ("Data Scientist I", "Develop predictive models in Python and SQL; use scikit-learn, pandas and PyTorch; communicate insights. "
+                             "Bachelor's or Master's in Statistics, CS or related field; 0-2 years of experience.", "Data Science"),
+        ("Software Development Engineer I", "Design, build and test scalable services in Java and Python; data structures and algorithms; "
+                                            "REST APIs; Git and Linux. BS in Computer Science.", "Software Engineering"),
+        ("Machine Learning Engineer - New Grad", "Train and deploy deep learning models with PyTorch; MLOps with Docker and Kubernetes; "
+                                                 "Python. Master's degree in CS or related.", "Machine Learning / AI"),
+        ("Computer Vision Engineer, Early Career", "Build image recognition and perception pipelines with OpenCV and PyTorch; "
+                                                   "deep learning; Python and C++.", "Computer Vision"),
+        ("Associate Data Engineer", "Build ETL data pipelines using Spark, Airflow and dbt on Snowflake; SQL and Python; "
+                                    "1+ years of experience.", "Data Engineering"),
+        ("Technical Analyst", "Translate business needs into technical requirements, write SQL queries against our databases, "
+                              "build Power BI dashboards and support data analysis.", "IT / Technical Analyst"),
+        ("Generative AI Engineer", "Build LLM applications and AI agents using LangChain and LangGraph; retrieval-augmented generation; "
+                                   "Python; cloud deployment on AWS.", "Machine Learning / AI"),
+        ("Business Intelligence Analyst", "Own dashboards in Tableau, write SQL, analyze trends and present insights; Excel.", "Analytics"),
+        ("Research Engineer", "Implement ML research ideas in PyTorch. BS/MS in CS or equivalent practical experience; Python.", "Research"),
+    ]
+    REJECT = [
+        ("TIG Welder - Entry Level", "Perform TIG and MIG welding on aluminum and stainless steel assemblies; read blueprints and weld "
+                                     "symbols; use hand tools. High school diploma; 0-1 years of experience."),
+        ("Mechanical Assembly Technician", "Assemble mechanical components using torque tools; follow work instructions; 0-1 years."),
+        ("Manufacturing Technician I", "Operate CNC and production equipment; perform quality checks; entry level."),
+        ("Warehouse Associate", "Pick, pack and ship orders; operate forklift; entry level, no experience required."),
+        ("Sales Development Representative", "Prospect and cold call; book meetings; CRM; quota; new grads welcome."),
+        ("Retail Sales Associate", "Assist customers in store; cashier duties; merchandising."),
+        ("Customer Service Representative", "Answer customer calls and chats; resolve issues; entry level."),
+        ("Administrative Assistant", "Schedule meetings, manage calendars, prepare documents; entry level."),
+        ("Antenna Engineer", "Design RF antennas and PCB layouts; run thermal and structural analysis in CAD; MATLAB; 1+ years."),
+    ]
+    def test_accepts_relevant_roles(self):
+        for title, desc, fam in self.ACCEPT:
+            a = rel.assess(dict(title=title, desc=desc))
+            self.assertEqual((a["relevance"], a["family"]), ("MATCH", fam), title)
+            self.assertTrue(a["skills"], title)
+
+    def test_rejects_unrelated_roles(self):
+        for title, desc in self.REJECT:
+            self.assertEqual(rel.assess(dict(title=title, desc=desc))["relevance"], "UNRELATED", title)
+
+    def test_end_to_end_tig_welding_rejected_relevant_roles_reported(self):
+        c.run([dict(company="SpaceX", ats="greenhouse", slug="s")], self.now, fetch=lambda s, seen: [])
+        jobs = [J(t, desc=d, jid=i) for i, (t, d, _) in enumerate(self.ACCEPT)] + \
+               [J(t, desc=d, jid=100 + i) for i, (t, d) in enumerate(self.REJECT)]
+        r = c.run([dict(company="SpaceX", ats="greenhouse", slug="s")], self.now, fetch=lambda s, seen: jobs)
+        reported = {n["title"] for n in r["new"] + r["review"]}
+        self.assertNotIn("TIG Welder - Entry Level", reported)
+        self.assertTrue(reported.isdisjoint({t for t, _ in self.REJECT}))
+        for title, _, _ in self.ACCEPT:
+            self.assertIn(title, reported)
+        self.assertEqual(r["excluded"]["not relevant to profile"], len(self.REJECT))
+
+    def test_phd_only_excluded_bs_ms_accepted(self):
+        phd = rel.assess(dict(title="Research Scientist", desc="PhD in machine learning is required. Publish at NeurIPS. Python, PyTorch."))
+        self.assertTrue(phd["phd_only"]); self.assertEqual(phd["education"], "PhD required")
+        ok = rel.assess(dict(title="Applied Scientist", desc="MS or PhD in CS, or equivalent practical experience. Python, PyTorch, statistics."))
+        self.assertFalse(ok["phd_only"])
+        self.assertTrue(rel.assess(dict(title="AI Research Intern (PhD)", desc="Research LLMs in Python."))["phd_only"])
+        c.run(TestRunBehaviour.SRC[:1], self.now, fetch=lambda s, seen: [])
+        r = c.run(TestRunBehaviour.SRC[:1], self.now, fetch=lambda s, seen: [
+            J("Research Scientist Intern", desc="Currently pursuing a PhD in CS. Python, PyTorch, deep learning.", jid=1),
+            J("Research Engineer Intern", desc="Pursuing a BS or MS in CS. Python, PyTorch, deep learning.", jid=2)])
+        self.assertEqual([n["title"] for n in r["new"]], ["Research Engineer Intern"])
+        self.assertEqual(r["excluded"]["PhD required"], 1)
+
+    def test_military_transition_programs_excluded(self):
+        c.run(TestRunBehaviour.SRC[:1], self.now, fetch=lambda s, seen: [])
+        r = c.run(TestRunBehaviour.SRC[:1], self.now, fetch=lambda s, seen: [
+            J("Software Engineer Intern", {"facet": "Military Fellowship Program"}, jid=1),
+            J("Data Analyst Intern - SkillBridge", desc="DoD SkillBridge program for transitioning service members. SQL, Python.", jid=2),
+            J("Software Engineer Intern", jid=3)])
+        self.assertEqual([n["id"] if "id" in n else n["url"] for n in r["new"]], ["https://x/Software Engineer Intern"])
+        self.assertEqual(r["excluded"]["military transition program"], 2)
+
+    def test_work_authorization_flags(self):
+        self.assertEqual(rel.work_auth("We are unable to sponsor or take over sponsorship of an employment visa."), "No visa sponsorship")
+        self.assertIn("Security clearance required", rel.work_auth("Must have an active Secret clearance. Must be a U.S. citizen."))
+        self.assertEqual(rel.work_auth("Python and SQL."), "Not stated (unverified)")
+
+    def test_regions(self):
+        self.assertEqual(rel.region("Alpharetta, GA"), "Atlanta metro")
+        self.assertEqual(rel.region("Remote - US; Atlanta, Georgia"), "Atlanta metro")
+        self.assertEqual(rel.region("Savannah, GA"), "Georgia")
+        self.assertEqual(rel.region("Decatur, AL"), "United States")
+        self.assertEqual(rel.region("Brookhaven, NY"), "United States")
+        self.assertEqual(rel.region("Marietta, GA"), "Atlanta metro")
+
+class TestQuietRunsAndHousekeeping(TempState):
+    def setUp(self):
+        super().setUp()
+        p = mock.patch.object(pi, "REPORTS", self.tmp / "reports"); p.start(); self.addCleanup(p.stop)
+        e = mock.patch.dict(os.environ, {"GITHUB_RUN_ID": "9"}); e.start(); self.addCleanup(e.stop)
+
+    def test_quiet_run_creates_no_issue_but_failures_do(self):
+        src = TestRunBehaviour.SRC
+        c.run(src, self.now, fetch=lambda s, seen: [])
+        r = c.run(src, self.now, fetch=lambda s, seen: [J("TIG Welder", desc="welding", jid=1)])   # only unrelated
+        c.write_report(r)
+        self.assertEqual(pi.build_report_issue(r["date"], "me/repo", "me", "U"), (None, None))
+        def half(s, seen):
+            if s["slug"] == "b": raise ConnectionError("down")
+            return []
+        r = c.run(src, self.now, fetch=half); c.write_report(r)
+        title, body = pi.build_report_issue(r["date"], "me/repo", "me", "U")
+        self.assertIn("[1 sources failed]", title)
+
+    def test_stale_report_from_earlier_run_is_not_reposted(self):
+        r = c.run(TestRunBehaviour.SRC[:1], self.now, fetch=lambda s, seen: []); c.write_report(r)
+        with mock.patch.dict(os.environ, {"GITHUB_RUN_ID": "10"}):         # a later run that crashed before writing
+            title, body = pi.build_report_issue(r["date"], "me/repo", "me", "U")
+        self.assertIn("DID NOT FINISH", title)
+
+    def test_only_week_old_reports_are_closed(self):
+        now = dt.datetime(2026, 11, 20, tzinfo=dt.timezone.utc)
+        issues = [{"number": 1, "title": "Early-career report 2026-11-10 08:00 - 1 new, 0 to review", "created_at": "2026-11-10T13:10:00Z"},
+                  {"number": 2, "title": "Early-career report 2026-11-19 08:00 - 2 new, 0 to review", "created_at": "2026-11-19T13:10:00Z"}]
+        calls = []
+        def fake(m, p, payload=None, token=None):
+            calls.append((m, p)); return issues if m == "GET" else {}
+        with mock.patch.object(pi, "api", fake):
+            self.assertEqual(pi.close_previous("me/repo", 99, now=now), 1)
+        self.assertIn(("PATCH", "/repos/me/repo/issues/1"), calls)
+
+    def test_old_history_pruned(self):
+        c.SEEN.parent.mkdir(parents=True, exist_ok=True)
+        c.SEEN.write_text(json.dumps({"greenhouse:a|old": "2026-01-01", "greenhouse:a|recent": "2026-11-01"}))
+        c.run(TestRunBehaviour.SRC[:1], self.now, fetch=lambda s, seen: [])
+        seen = json.loads(c.SEEN.read_text())
+        self.assertNotIn("greenhouse:a|old", seen); self.assertIn("greenhouse:a|recent", seen)
+
+    def test_two_runs_same_day_keep_separate_reports(self):
+        src = TestRunBehaviour.SRC[:1]
+        c.run(src, self.now, fetch=lambda s, seen: [])
+        r1 = c.run(src, self.now + dt.timedelta(hours=3), fetch=lambda s, seen: [J("Data Science Intern", jid=1)]); c.write_report(r1)
+        r2 = c.run(src, self.now + dt.timedelta(hours=6), fetch=lambda s, seen: [J("Data Science Intern", jid=1), J("ML Intern", jid=2)])
+        c.write_report(r2)
+        self.assertNotEqual(r1["stamp"], r2["stamp"])
+        self.assertEqual([n["title"] for n in r2["new"]], ["ML Intern"])           # no repeat across checks
+        self.assertTrue((self.tmp / f"reports/{r1['stamp']}.csv").exists() and (self.tmp / f"reports/{r2['stamp']}.csv").exists())
+
+    def test_discover_workday_finds_site(self):
+        def poster(url):
+            if url == "https://acme.wd5.myworkdayjobs.com/wday/cxs/acme/AcmeCareers/jobs": return {"total": 42}
+            raise ConnectionError()
+        rows = c.discover_workday("Acme", ["acme"], poster=poster,
+                                  root_site=lambda host: "AcmeCareers" if host.startswith("acme.wd5") else None)
+        self.assertEqual((rows[0]["wd_host"], rows[0]["wd_site"]), ("acme.wd5.myworkdayjobs.com", "AcmeCareers"))
+        self.assertEqual(c.discover_workday("Nope", ["nope"], poster=poster, root_site=lambda h: None), [])
 
 class TestUpdateMaster(unittest.TestCase):
     def test_untested_never_marked_verified(self):
@@ -427,47 +597,61 @@ class TestFetchers(unittest.TestCase):
 
 class TestScheduleGuard(unittest.TestCase):
     U = dt.timezone.utc
-    def test_winter_and_summer(self):
-        jan = lambda h, m: dt.datetime(2027, 1, 15, h, m, tzinfo=self.U)
-        jul = lambda h, m: dt.datetime(2027, 7, 15, h, m, tzinfo=self.U)
-        self.assertFalse(g.should_run(jan(11, 50), None, "schedule")[0])   # 06:50 EST
-        self.assertTrue(g.should_run(jan(12, 50), None, "schedule")[0])    # 07:50 EST
-        self.assertTrue(g.should_run(jul(11, 50), None, "schedule")[0])    # 07:50 EDT
-        self.assertFalse(g.should_run(jul(12, 50), "2027-07-15", "schedule")[0])
-        self.assertTrue(g.should_run(jul(14, 40), None, "schedule")[0])    # 10:40 EDT - late trigger still runs
-        self.assertTrue(g.should_run(jul(16, 50), None, "schedule")[0])    # 12:50 EDT - still runs if nothing ran yet
-        self.assertTrue(g.should_run(jan(23, 50), None, "schedule")[0])    # 18:50 EST - last trigger of the day
-        self.assertFalse(g.should_run(jan(23, 50), "2027-01-15", "schedule")[0])
-        self.assertTrue(g.should_run(jan(3, 0), "2027-01-15", "workflow_dispatch")[0])
+    CRON_HOURS_UTC = (0, 1, 12, 13, 15, 16, 18, 19, 21, 22)          # must match daily.yml
 
-    def test_dropped_morning_triggers_still_produce_report(self):
-        # 2026-11-15: GitHub fired nothing in the morning; the first trigger that does arrive must run
-        day = dt.date(2026, 11, 15)
-        fired = [16, 17]                                                      # only 11:50 and 12:50 EST arrive
-        last, ran = None, []
-        for hh in fired:
-            t = dt.datetime(day.year, day.month, day.day, hh, 50, tzinfo=self.U)
-            ok, _ = g.should_run(t, last, "schedule")
+    def simulate(self, day, dropped=()):
+        """Fire every cron trigger of one New York day in order; return the NY times that actually ran."""
+        start = dt.datetime(day.year, day.month, day.day, 6, 0, tzinfo=NY).astimezone(self.U)
+        trig = []
+        for d in (0, 1):
+            for h in self.CRON_HOURS_UTC:
+                t = dt.datetime(start.year, start.month, start.day, h, 7, tzinfo=self.U) + dt.timedelta(days=d)
+                if start <= t < start + dt.timedelta(hours=18) and t not in dropped:
+                    trig.append(t)
+        last, ran = f"{(day - dt.timedelta(days=1)).isoformat()}T20", []
+        for t in sorted(trig):
+            ok, slot, _ = g.should_run(t, last, "schedule")
             if ok:
-                ran.append(hh); last = t.astimezone(NY).date().isoformat()
-        self.assertEqual(ran, [16])
+                ran.append(t.astimezone(NY).strftime("%H:%M")); last = slot
+        return ran
 
-    def test_workflow_cron_is_hourly(self):
-        wf = (ROOT / ".github/workflows/daily.yml").read_text()   # plain text: PyYAML is not on the runner
-        crons = re.findall(r'cron:\s*"([^"]+)"', wf)
-        self.assertEqual(crons, ["50 11-23 * * *"])
-        self.assertIn("issues: write", wf); self.assertIn("contents: write", wf)
+    def test_five_checks_in_winter_and_summer(self):
+        self.assertEqual(self.simulate(dt.date(2027, 1, 15)), ["08:07", "11:07", "14:07", "17:07", "20:07"])
+        self.assertEqual(self.simulate(dt.date(2027, 7, 15)), ["08:07", "11:07", "14:07", "17:07", "20:07"])
 
     def test_dst_switch_days(self):
-        # 2027-03-14 (spring forward) and 2027-11-07 (fall back): exactly one trigger inside the window runs first
         for day in (dt.date(2027, 3, 14), dt.date(2027, 11, 7), dt.date(2026, 11, 1)):
-            last, ran = None, []
-            for hh in range(11, 24):                                          # hourly triggers 11:50-23:50 UTC
-                t = dt.datetime(day.year, day.month, day.day, hh, 50, tzinfo=self.U)
-                ok, _ = g.should_run(t, last, "schedule")
-                if ok:
-                    ran.append(t.astimezone(NY).strftime("%H:%M")); last = t.astimezone(NY).date().isoformat()
-            self.assertEqual(len(ran), 1, (day, ran)); self.assertIn(ran[0], ("07:50", "08:50"))
+            self.assertEqual(self.simulate(day), ["08:07", "11:07", "14:07", "17:07", "20:07"], day)
+
+    def test_dropped_trigger_is_covered_by_backup(self):
+        # winter: the 08:07 EST trigger is dropped -> the next trigger (10:07) runs the 08:00 slot
+        ran = self.simulate(dt.date(2027, 1, 15), dropped={dt.datetime(2027, 1, 15, 13, 7, tzinfo=self.U)})
+        self.assertEqual(ran, ["10:07", "11:07", "14:07", "17:07", "20:07"])
+        # summer: the 08:07 EDT trigger is dropped -> the 09:07 backup runs it
+        ran = self.simulate(dt.date(2027, 7, 15), dropped={dt.datetime(2027, 7, 15, 12, 7, tzinfo=self.U)})
+        self.assertEqual(ran, ["09:07", "11:07", "14:07", "17:07", "20:07"])
+
+    def test_each_slot_runs_once_and_manual_always_runs(self):
+        t = dt.datetime(2027, 1, 15, 16, 7, tzinfo=self.U)                       # 11:07 EST
+        self.assertEqual(g.should_run(t, None, "schedule")[:2], (True, "2027-01-15T11"))
+        self.assertFalse(g.should_run(t, "2027-01-15T11", "schedule")[0])
+        self.assertTrue(g.should_run(t, "2027-01-15T11", "workflow_dispatch")[0])
+        self.assertFalse(g.should_run(t, "2027-01-15T14", "schedule")[0])        # a later slot already ran
+        self.assertEqual(g.current_slot(dt.datetime(2027, 1, 15, 12, 7, tzinfo=self.U)), "2027-01-14T20")
+
+    def test_old_last_run_file_without_slot(self):
+        tmp = Path(tempfile.mkdtemp()) / "last_run.json"
+        tmp.write_text(json.dumps({"date": "2026-11-15"}))
+        with mock.patch.object(g, "LAST", tmp):
+            self.assertIsNone(g.read_last())
+            g.mark_done("2026-11-16T08")
+            self.assertEqual(g.read_last(), "2026-11-16T08")
+
+    def test_workflow_cron_matches_five_slots(self):
+        wf = (ROOT / ".github/workflows/daily.yml").read_text()   # plain text: PyYAML is not on the runner
+        self.assertEqual(re.findall(r'cron:\s*"([^"]+)"', wf), ["7 0,1,12,13,15,16,18,19,21,22 * * *"])
+        self.assertIn("issues: write", wf); self.assertIn("contents: write", wf)
+        self.assertIn("mark-done ${{ steps.guard.outputs.slot }}", wf)
 
 class TestSaveHistory(unittest.TestCase):
     def sh(self, *a, cwd):
