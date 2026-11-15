@@ -1,0 +1,62 @@
+company,industry,metro_city,workday_tenant_guesses,note,in_master
+Delta Air Lines,Airlines / Technology,Atlanta,delta,HQ Atlanta,new
+"Cox Enterprises (Cox Automotive, Cox Communications)",Media / Automotive tech / Telecom,Atlanta,cox;coxautoinc,HQ Atlanta,new
+NCR Voyix,Fintech / Software,Atlanta,ncr;ncrvoyix,HQ Atlanta,new
+NCR Atleos,Fintech / ATMs,Atlanta,ncratleos;atleos,HQ Atlanta,new
+Manhattan Associates,Supply chain software,Atlanta,manh;manhattanassociates,HQ Atlanta,new
+Genuine Parts Company,Automotive / Distribution,Atlanta,genpt;genuineparts,HQ Atlanta,new
+Federal Reserve Bank of Atlanta,Central banking / Research,Atlanta,,Workday site rb.wd5.myworkdayjobs.com/FRS seen in search (all Reserve Banks),new
+Georgia Tech Research Institute,Research,Atlanta,gatech;gtri,University-affiliated research lab,new
+Georgia Institute of Technology,University / Research,Atlanta,gatech,University,new
+Emory University and Emory Healthcare,University / Healthcare,Atlanta,emory;emoryhealthcare,University + health system,new
+Piedmont Healthcare,Healthcare,Atlanta,piedmont,Health system,new
+Children's Healthcare of Atlanta,Healthcare,Atlanta (Brookhaven),choa,Health system,new
+Northside Hospital,Healthcare,Atlanta,northside,Health system,new
+Norfolk Southern,Rail / Logistics,Atlanta,nscorp;norfolksouthern,HQ Atlanta,new
+Graphic Packaging International,Manufacturing,Atlanta,graphicpkg,HQ Atlanta,new
+AGCO,Agricultural machinery / Tech,Duluth,agco,HQ Duluth GA,new
+Assurant,Insurance,Atlanta,assurant,HQ Atlanta,new
+Invesco,Asset management,Atlanta,invesco,HQ Atlanta,new
+Primerica,Financial services,Duluth,primerica,HQ Duluth GA,new
+Synovus,Banking,Columbus GA / Atlanta,synovus,HQ Columbus GA,new
+InComm Payments,Fintech,Atlanta,incomm,HQ Atlanta,new
+Americold,Logistics,Atlanta,americold,HQ Atlanta,new
+Inspire Brands,Restaurants / Data & tech teams,Atlanta,inspirebrands,HQ Atlanta,new
+Chick-fil-A,Restaurants / Digital & tech,Atlanta,,HQ Atlanta; own careers site,new
+Rollins,Services,Atlanta,rollins,HQ Atlanta,new
+Southwire,Manufacturing,Carrollton,southwire,HQ Carrollton GA,new
+HD Supply,Distribution,Atlanta,hdsupply,HQ Atlanta (Home Depot company),new
+Jackson Healthcare,Healthcare staffing / Tech,Alpharetta,jacksonhealthcare,HQ Alpharetta,new
+UKG,HR software,Alpharetta,,Large Alpharetta office,new
+Georgia Power,Utilities,Atlanta,southerncompany,Southern Company subsidiary,new
+Georgia Transmission Corporation,Utilities,Tucker,,HQ Tucker GA,new
+Cardlytics,Fintech / Ad tech,Atlanta,,HQ Atlanta; probe Greenhouse/Lever/Ashby,new
+Calendly,Software,Atlanta,,HQ Atlanta; probe Greenhouse/Lever/Ashby,new
+Greenlight Financial Technology,Fintech,Atlanta,,HQ Atlanta; probe Greenhouse/Lever/Ashby,new
+Florence Healthcare,Health tech,Atlanta,,Greenhouse board 'florencehealthcare' seen in search,new
+OneTrust,Privacy software,Atlanta,,HQ Atlanta; probe Greenhouse/Lever/Ashby,new
+Salesloft,Sales software,Atlanta,,HQ Atlanta; probe Greenhouse/Lever/Ashby,new
+Bakkt,Fintech / Crypto,Alpharetta,,HQ Alpharetta; probe Greenhouse/Lever/Ashby,new
+ParkMobile,Mobility software,Atlanta,,HQ Atlanta; probe Greenhouse/Lever/Ashby,new
+FullStory,Analytics software,Atlanta,,HQ Atlanta; probe Greenhouse/Lever/Ashby,new
+Pindrop,Voice security / AI,Atlanta,,HQ Atlanta; probe Greenhouse/Lever/Ashby,new
+Flock Safety,Computer vision / Safety tech,Atlanta,,HQ Atlanta; probe Greenhouse/Lever/Ashby,new
+Sharecare,Digital health,Atlanta,,HQ Atlanta; probe Greenhouse/Lever/Ashby,new
+BitPay,Fintech / Crypto,Atlanta,,HQ Atlanta; probe Greenhouse/Lever/Ashby,new
+Stord,Logistics software,Atlanta,,HQ Atlanta; probe Greenhouse/Lever/Ashby,new
+Gray Media,Media,Atlanta,,HQ Atlanta,new
+CoreCard,Fintech software,Norcross,,HQ Norcross GA,new
+The Home Depot,(see master),Atlanta metro operations,homedepot,Already in master; large Atlanta-area presence,existing
+UPS,(see master),Atlanta metro operations,,Already in master; large Atlanta-area presence,existing
+Coca-Cola Company,(see master),Atlanta metro operations,coke;cocacola,Already in master; large Atlanta-area presence,existing
+Southern Company,(see master),Atlanta metro operations,southerncompany,Already in master; large Atlanta-area presence,existing
+Truist,(see master),Atlanta metro operations,truist,Already in master; large Atlanta-area presence,existing
+Elevance Health,(see master),Atlanta metro operations,elevancehealth,Already in master; large Atlanta-area presence,existing
+Global Payments,(see master),Atlanta metro operations,tsys;globalpayments,Already in master; large Atlanta-area presence,existing
+Fiserv,(see master),Atlanta metro operations,fiserv,Already in master; large Atlanta-area presence,existing
+Intercontinental Exchange,(see master),Atlanta metro operations,ice;intercontinentalexchange,Already in master; large Atlanta-area presence,existing
+Equifax,(see master),Atlanta metro operations,equifax,Already in master; large Atlanta-area presence,existing
+AT&T,(see master),Atlanta metro operations,att,Already in master; large Atlanta-area presence,existing
+Warner Bros. Discovery,(see master),Atlanta metro operations,wbd;warnerbros,Already in master; large Atlanta-area presence,existing
+Microsoft,(see master),Atlanta metro operations,,Already in master; large Atlanta-area presence,existing
+Google,(see master),Atlanta metro operations,,Already in master; large Atlanta-area presence,existing

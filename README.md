@@ -1,28 +1,50 @@
-# Early-career collector (v2)
+# Early-career collector (v3)
 
-Every morning it checks the public job feeds of the companies in `ats_sources.csv` (Greenhouse, Lever, Ashby, Workday). It reports **new US** postings in four buckets:
+Checks the public job feeds of the companies in `ats_sources.csv` (Greenhouse, Lever, Ashby, Workday) **five times a day**, at about 08:00, 11:00, 14:00, 17:00 and 20:00 New York time. It reports **new, relevant, early-career US postings** as a GitHub issue, and GitHub emails it to you.
 
-| Bucket | Meaning | Where it appears |
-|---|---|---|
-| **Confirmed** | Early-career according to the company's own career-level data (e.g. `Employment Type = Intern`, `Req Type = University - New Grad`, Workday `workerSubType = Intern`), the title, or a stated requirement of 0–1 years | Email + report, grouped by type |
-| **Needs review** | Plausibly early-career but uncertain (level IC2/3, "2+ years", "recent graduates welcome") | Email + report, with the reason |
-| **Unclassified** | No level information at all | Count in email; full list in `reports/<date>-unclassified.csv` |
-| **Excluded** | Co-op (always), senior/staff/lead/manager/director titles or levels, or 3+ years required | Counts only |
+## How a posting is judged
+1. **Career level** (unchanged): internships, new grad, entry-level, junior/associate, SWE I / SDE I, graduate and rotational programs, and roles requiring 0-2 years are kept. **Co-ops are always excluded**, as are senior/staff/lead/principal/manager/director roles, roles requiring 3+ years, and military transition programs (SkillBridge etc.).
+2. **Relevance to your profile** (`relevance.py`), judged from the title and the **full description**:
+   - **Target families:** Analytics/BI, Data Science, ML/AI/GenAI/LLM/agentic, Computer Vision, Software Engineering/SDE, Data Engineering, AI Automation, Digital Transformation, Research (BS/MS accepted), IT/Technical/Systems Analyst.
+   - **Skill evidence:** Python, SQL, PyTorch, scikit-learn, OpenCV, LangChain/LangGraph, LLMs, Spark/Airflow/dbt, Tableau/Power BI, Git, Linux, Docker/Kubernetes, cloud, MLOps, statistics and more. No job has to list them all.
+   - **Unrelated work is rejected:** welding, assembly, manufacturing or mechanical technicians, warehouse, drivers, sales, retail, customer service, admin, HR/recruiting, accounting, legal and clinical roles. Industry doesn't matter: a data role at a factory or hospital is kept.
+   - **PhD-only roles are excluded**, unless the posting accepts a BS/MS or equivalent experience.
+   - **Work-authorization restrictions are flagged** (no sponsorship, citizenship, clearance, export control). If a posting says nothing, it shows "Not stated (unverified)".
+3. **Result:**
+   - **Confirmed** = early-career and relevant.
+   - **Needs review** = relevant, but the level or fit is uncertain, e.g. "2 yrs" or no level stated.
+   - Everything else isn't reported. Postings with no level information and weak relevance stay in the run's unclassified CSV.
 
-Types: Internship, New Graduate, Entry-Level, Early-Career Full-Time, Graduate Program, Rotational Program.
+## The report (GitHub issue)
+Sections, in this order:
+1. Atlanta area (Atlanta, Alpharetta, Sandy Springs, Dunwoody, Roswell, Marietta, Smyrna, Kennesaw, Duluth, Norcross, Peachtree Corners, Johns Creek, Decatur …)
+2. Elsewhere in Georgia
+3. Elsewhere in the US
+4. Needs review
 
-**What gets emailed** (as a GitHub issue notification). Only postings published in the last 24 hours (new + needs review), up to 10 per company. Existing openings, older postings and unclassified postings are never emailed; they're kept in the CSV files in `reports/`.
+Each job's own location decides its section, not the company's headquarters.
 
-**History.** Every posting is remembered in `state/seen_jobs.json`, so nothing is reported twice. The first time a source is checked, its current postings go into `reports/baseline-<date>.md` as *existing* roles for you to review. They are never reported as new.
+Each entry shows the title, company, location, employment type, category, career level, experience required, education, posting date, work-authorization note, why it matches, and the direct apply link. There are up to 10 roles per company per section; the rest are listed in the run's CSV.
 
-**Failures.** If any source fails, the report says **INCOMPLETE** or **RUN FAILED** and lists the failed sources. It never says "no new opportunities" for sources it couldn't check. If more than 25% of sources fail, the GitHub run is marked failed, and GitHub emails you about failed runs.
+**No issue is created when a check finds nothing new and relevant.** Failed sources, a crash, or a feed suddenly returning 0 jobs *always* create an issue. Report issues older than 7 days are closed automatically.
+
+**History:** every posting is remembered in `state/seen_jobs.json`, shared across all five daily checks, so nothing is reported twice. A source's first check records its existing openings as a baseline (`reports/baseline-*.md`) and never reports them as new. Only postings published within the last 24 hours are reported; the window widens automatically after a missed check. History older than 120 days is pruned; such postings are far too old to pass the 24-hour rule anyway.
+
+## Schedule and GitHub usage
+- **Triggers:** cron `7 0,1,12,13,15,16,18,19,21,22 * * *`, i.e. both the winter and summer UTC conversions of each slot. `scripts/schedule_guard.py` runs each slot at most once.
+- **Backup:** the second trigger of each pair acts as a backup about 1 hour (summer) or 2 hours (winter) later. GitHub can delay or drop scheduled runs, so times are approximate.
+- **Estimated usage:** about 5 real checks × 4–6 min plus 5 skipped triggers × about 1 billed minute each. That's roughly **25–35 min/day, or 750–1,100 min/month**, within the 2,000 free minutes/month for private repos on GitHub Free. Check it under **Settings → Billing**.
+- **Requests:** about 150 public API requests per check, most of them Workday pages.
+- **Repo growth:** up to 5 small history commits a day.
 
 ## Files
 - `ats_collector.py`: the collector (`run`, `verify`, `discover` modes)
 - `ats_sources.csv`: configured feeds, with the result of the last live check
 - `US_Early_Careers_300_Companies.csv` + `update_master.py`: the master database and the script that syncs it with check results
 - `visualping_pilot.csv`: pages proposed for Visualping (companies with no public feed)
-- `scripts/schedule_guard.py`: makes the daily run start at about 8 AM New York time all year
+- `relevance.py`: the job-description relevance filter (edit its lists to tune it)
+- `atlanta_candidates.csv`: Atlanta-area employers with Workday tenant guesses for the discover step
+- `scripts/schedule_guard.py`: runs each of the five daily check slots once (handles daylight saving time)
 - `scripts/post_issue.py`: posts each daily report as an issue assigned to you, and closes the previous day's report issue
 - `scripts/save_history.sh`: commits history and reports back to the repo, retrying if needed
 - `tests/`: 26 offline tests, including real Greenhouse postings captured on 2026-11-10
@@ -51,7 +73,7 @@ Types: Internship, New Graduate, Entry-Level, Early-Career Full-Time, Graduate P
 GitHub pauses scheduled workflows in repos with no activity for 60 days. The daily history commit counts as activity, so this won't happen as long as runs keep succeeding.
 
 ## Adding companies (towards all 300)
-- **Discover:** go to Actions → Run workflow → mode **discover**. It tries likely board names for every company in the master CSV that isn't configured yet, and writes `discovered_sources.csv`. Only rows with `name_match = yes` are safe to add. Copy them into `ats_sources.csv` with `enabled=1` and `live_status=UNTESTED`, then run **verify**.
+- **Discover:** go to Actions → Run workflow → mode **discover**. It also tries to find Workday career sites for the companies in `atlanta_candidates.csv`. It tries likely board names for every company in the master CSV that isn't configured yet, and writes `discovered_sources.csv`. Only rows with `name_match = yes` are safe to add. Copy them into `ats_sources.csv` with `enabled=1` and `live_status=UNTESTED`, then run **verify**.
 - **Workday companies:** find the company's careers site URL in the form `https://<tenant>.wd<N>.myworkdayjobs.com/<site>`, then add a row `Company,workday,<tenant>,<tenant>.wd<N>.myworkdayjobs.com,<site>,1,UNTESTED,,,`.
 - **No public feed** (e.g. Google, Amazon, JPMorgan): use Visualping. See `visualping_pilot.csv`.
 

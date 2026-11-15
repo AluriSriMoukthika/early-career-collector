@@ -14,10 +14,12 @@ Modes:
   discover  probe Greenhouse/Lever/Ashby board names for companies not yet configured
 """
 import argparse, csv, datetime as dt, html, json, os, re, smtplib, sys, time
-import urllib.error, urllib.request
+import urllib.error, urllib.parse, urllib.request
 from email.mime.text import MIMEText
 from pathlib import Path
 from zoneinfo import ZoneInfo
+
+import relevance
 
 HERE = Path(__file__).parent
 STATE = HERE / "state"
@@ -31,6 +33,7 @@ WORKDAY_DETAIL_CAP = int(os.environ.get("WORKDAY_DETAIL_CAP", "150"))   # detail
 FAIL_EXIT_RATIO = float(os.environ.get("FAIL_EXIT_RATIO", "0.25"))       # >25% failed sources -> exit 2
 MAX_AGE_HOURS = float(os.environ.get("MAX_AGE_HOURS", "24"))             # email only postings this fresh
 EMAIL_CAP_PER_COMPANY = int(os.environ.get("EMAIL_CAP_PER_COMPANY", "10"))  # rows per company in the email
+SEEN_RETENTION_DAYS = int(os.environ.get("SEEN_RETENTION_DAYS", "120"))   # older history can't pass the 24h rule anyway
 
 TYPES = ["Internship", "New Graduate", "Entry-Level", "Early-Career Full-Time", "Graduate Program", "Rotational Program"]
 
@@ -67,6 +70,9 @@ YEARS = re.compile(r"(?<![\d.])(\d{1,2})\s*(?:\+|plus)?\s*(?:(?:-|–|to)\s*(\d{
 EARLY_TEXT = re.compile(r"new grad|recent(ly)? graduat|graduating in 20\d\d|entry[- ]level|early[- ]career|"
                         r"no (prior )?(professional )?experience (is )?required|0\s*(-|–|to)\s*[12]\s*years|"
                         r"university graduates|class of 20\d\d", re.I)
+
+MILITARY = re.compile(r"skillbridge|military fellowship|transitioning (service ?members?|military)|hiring our heroes|"
+                      r"active[- ]duty service members? (in|within) (their|the) final", re.I)
 
 def _flat(v):
     if v is None:
@@ -312,6 +318,14 @@ def fetch_workday(src, seen_ids=frozenset(), today=None):
                    posted=workday_posted(p.get("postedOn"), today), posted_rel=p.get("postedOn") or "",
                    meta=meta, desc=desc)
 
+def employment_type(job, typ):
+    for k, v in (job.get("meta") or {}).items():
+        if re.search(r"employment type|commitment|time type|worker sub-?type", k, re.I):
+            vals = _flat(v)
+            if vals:
+                return vals[0]
+    return "Internship" if typ == "Internship" else "Not stated"
+
 def posting_age_hours(job, now):
     """Hours since the posting was published, or None if the feed gives no date.
     Workday only says 'Posted Today / Yesterday / N Days Ago', so it is mapped to 0 / 24 / N*24."""
@@ -361,7 +375,7 @@ def run(sources, now=None, fetch=None):
     today = now.date().isoformat()
     seen = load_json(SEEN, {})
     sstate = load_json(SRC_STATE, {})
-    res = dict(date=today, new=[], baseline=[], review=[], unclassified=[], older=[], errors=[], warnings=[],
+    res = dict(date=today, stamp=now.strftime("%Y-%m-%d_%H%M"), new=[], baseline=[], review=[], unclassified=[], older=[], errors=[], warnings=[],
                ok=0, total=len(sources), excluded={}, window_hours=MAX_AGE_HOURS)
     for s in sources:
         k = src_key(s)
@@ -410,9 +424,32 @@ def run(sources, now=None, fetch=None):
             if status == "EXCLUDED":
                 res["excluded"][why.split(" (")[0]] = res["excluded"].get(why.split(" (")[0], 0) + 1
                 continue
+            # --- military transition programs (DoD SkillBridge etc.) are only open to service members
+            meta_txt = " ".join(str(v) for v in (j.get("meta") or {}).values())
+            if MILITARY.search(f"{j.get('title', '')} {meta_txt} {(j.get('desc') or '')[:3000]}"):
+                res["excluded"]["military transition program"] = res["excluded"].get("military transition program", 0) + 1
+                continue
+            # --- relevance to the candidate profile (title + full description)
+            a = relevance.assess(j)
+            if a["relevance"] == "UNRELATED":
+                res["excluded"]["not relevant to profile"] = res["excluded"].get("not relevant to profile", 0) + 1
+                continue
+            if a["phd_only"]:
+                res["excluded"]["PhD required"] = res["excluded"].get("PhD required", 0) + 1
+                continue
+            if status == "CONFIRMED" and a["relevance"] == "BORDERLINE":
+                status, why = "REVIEW", f"{why}; relevance uncertain"
+            elif status == "REVIEW" and a["relevance"] == "BORDERLINE":
+                status = "UNCLASSIFIED"
+            elif status == "UNCLASSIFIED" and a["relevance"] == "MATCH":
+                status, typ, why = "REVIEW", "Early-Career Full-Time", "relevant role, experience level not stated"
             age = posting_age_hours(j, now)
+            yrs = min_years(j.get("desc", ""))
             row = dict(company=s["company"], title=j["title"].strip(), type=typ or "-", status=status, reason=why,
                        location=(j.get("location") or "(not listed)") + ("" if us else " [US? unverified]"),
+                       region=relevance.region(j.get("location")), category=a["family"],
+                       employment=employment_type(j, typ), experience=("Not stated" if yrs is None else f"{yrs}+ yrs required" if yrs else "0 yrs / no minimum"),
+                       education=a["education"], work_auth=a["auth"], match=a["why"],
                        posted=(j.get("posted", "") or "(no date)"), age_hours="" if age is None else round(age, 1),
                        detected=today, url=j.get("url", ""))
             if status == "UNCLASSIFIED":
@@ -432,6 +469,8 @@ def run(sources, now=None, fetch=None):
         else:
             st["baselined"] = True   # a source leaves baseline mode only once every posting has been processed
     res["warnings"] = sorted(set(res["warnings"]))
+    cutoff = (now.date() - dt.timedelta(days=SEEN_RETENTION_DAYS)).isoformat()
+    seen = {k: v for k, v in seen.items() if v >= cutoff}
     save_json(SEEN, seen)
     save_json(SRC_STATE, sstate)
     return res
@@ -465,29 +504,49 @@ def _table(rows, with_reason=False):
                    f"{n['detected']} | {n['url']} |" + (f" {n['reason']} |" if with_reason else ""))
     return out
 
+def _entries(rows, review=False):
+    out = []
+    for n in rows:
+        out += [f"- **{n['title']}** - {n['company']}",
+                f"  - {n['location']} | {n.get('employment', 'Not stated')} | {n.get('category', '-')} | {n['type']}",
+                f"  - Experience: {n.get('experience', 'Not stated')} | Education: {n.get('education', 'Not stated')} | Posted: {n['posted']}",
+                f"  - Work authorization: {n.get('work_auth', 'Not stated (unverified)')}",
+                f"  - Why it matches: {n.get('match', '')}"]
+        if review:
+            out.append(f"  - Why it needs review: {n['reason']}")
+        out += [f"  - Apply: {n['url']}", ""]
+    return out
+
 def write_report(res):
     REPORTS.mkdir(exist_ok=True)
     d = res["date"]
+    st = res.get("stamp", d)          # one set of files per run (several runs per day)
     win = res.get("window_hours", MAX_AGE_HOURS)
     L = [f"# Early-career report - {d}", "", f"**Run status: {status_line(res)}**", "",
-         f"Postings published in the last {win:.0f} hours: New confirmed: {len(res['new'])} | Needs review: {len(res['review'])}", "",
+         f"Relevant postings published in the last {win:.0f} hours: New confirmed: {len(res['new'])} | Needs review: {len(res['review'])}", "",
          f"Sources OK: {res['ok']}/{res['total']} | Newly detected but older than {win:.0f}h (CSV only): {len(res.get('older', []))} | "
          f"Existing openings recorded as baseline (not emailed): {len(res['baseline'])} | Unclassified (CSV only): {len(res['unclassified'])}", ""]
     if not res["new"] and not res["review"]:
-        L.append(f"No new early-career opportunities published in the last {win:.0f} hours in the sources that were checked."
+        L.append(f"No new relevant early-career opportunities published in the last {win:.0f} hours in the sources that were checked."
                  if res["ok"] else "")
-    used = {}
-    shown_new, hidden_new = cap_per_company(res["new"], EMAIL_CAP_PER_COMPANY, used)
-    for typ in TYPES:
-        grp = [n for n in shown_new if n["type"] == typ]
-        if grp:
-            L += ["", f"## New - {typ} ({sum(1 for n in res['new'] if n['type'] == typ)})", ""] + _table(grp)
-    shown_rv, hidden_rv = cap_per_company(res["review"], EMAIL_CAP_PER_COMPANY)   # own budget: never crowded out
-    if shown_rv:
-        L += ["", f"## Needs your review ({len(res['review'])}) - level uncertain", ""] + _table(shown_rv, True)
-    hidden = {k: hidden_new.get(k, 0) + hidden_rv.get(k, 0) for k in set(hidden_new) | set(hidden_rv)}
+    hidden = {}
+    def add_hidden(h):
+        for k, v in h.items():
+            hidden[k] = hidden.get(k, 0) + v
+    sections = [("Atlanta metro", "1. Atlanta area"), ("Georgia", "2. Elsewhere in Georgia"), ("United States", "3. Elsewhere in the United States")]
+    for reg, heading in sections:
+        rows = [n for n in res["new"] if n.get("region", "United States") == reg]
+        if rows:
+            shown, h = cap_per_company(rows, EMAIL_CAP_PER_COMPANY); add_hidden(h)
+            L += ["", f"## {heading} - {len(rows)} new relevant", ""] + _entries(shown)
+    if res["review"]:
+        order = {r: i for i, (r, _) in enumerate(sections)}
+        rv = sorted(res["review"], key=lambda n: order.get(n.get("region", "United States"), 9))
+        shown, h = cap_per_company(rv, EMAIL_CAP_PER_COMPANY); add_hidden(h)
+        shown.sort(key=lambda n: order.get(n.get("region", "United States"), 9))
+        L += ["", f"## 4. Needs your review - {len(res['review'])} (relevant, but level or fit uncertain)", ""] + _entries(shown, review=True)
     if hidden:
-        L += ["", f"Showing up to {EMAIL_CAP_PER_COMPANY} roles per company in each section. The full list is in reports/{d}.csv:"] + \
+        L += ["", f"Showing up to {EMAIL_CAP_PER_COMPANY} roles per company in each section. The full list is in reports/{st}.csv:"] + \
              [f"- +{v} more {k} roles in today's CSV" for k, v in sorted(hidden.items(), key=lambda x: -x[1])]
     if res["errors"]:
         L += ["", "## Sources that FAILED (not checked this run)", ""] + [f"- {e}" for e in res["errors"]]
@@ -495,16 +554,17 @@ def write_report(res):
         L += ["", "## Warnings", ""] + [f"- {w}" for w in res["warnings"]]
     if res["unclassified"]:
         L += ["", f"Unclassified US postings with no level information: {len(res['unclassified'])} - see "
-                  f"reports/{d}-unclassified.csv (not shown here to keep alerts readable)."]
+                  f"reports/{st}-unclassified.csv (not shown here to keep alerts readable)."]
     if res["excluded"]:
         L += ["", "Excluded this run: " + ", ".join(f"{k}: {v}" for k, v in sorted(res["excluded"].items()))]
     md = "\n".join(L) + "\n"
-    (REPORTS / f"{d}.md").write_text(md)
-    fields = ["company", "title", "type", "status", "reason", "location", "posted", "age_hours", "detected", "url"]
+    (REPORTS / f"{st}.md").write_text(md)
+    fields = ["company", "title", "region", "location", "employment", "category", "type", "status", "experience", "education",
+              "work_auth", "match", "reason", "posted", "age_hours", "detected", "url"]
     older = [dict(r, status="OLDER_THAN_WINDOW") for r in res.get("older", [])]
     for name, rows in (("", res["new"] + res["review"] + older), ("-baseline", res["baseline"]), ("-unclassified", res["unclassified"])):
         if rows or name == "":
-            with open(REPORTS / f"{d}{name}.csv", "w", newline="", encoding="utf-8") as f:
+            with open(REPORTS / f"{st}{name}.csv", "w", newline="", encoding="utf-8") as f:
                 w = csv.DictWriter(f, fieldnames=fields, extrasaction="ignore"); w.writeheader(); w.writerows(rows)
     if res["baseline"]:
         B = [f"# Baseline - existing early-career postings ({d})", "",
@@ -517,12 +577,14 @@ def write_report(res):
         rv = [n for n in res["baseline"] if n["status"] == "REVIEW"]
         if rv:
             B += ["", f"## Level uncertain ({len(rv)})", ""] + _table(rv, True)
-        (REPORTS / f"baseline-{d}.md").write_text("\n".join(B) + "\n")
+        (REPORTS / f"baseline-{st}.md").write_text("\n".join(B) + "\n")
     # machine-readable summary used by scripts/post_issue.py
-    (REPORTS / f"{d}-summary.json").write_text(json.dumps(dict(
+    (REPORTS / f"{st}-summary.json").write_text(json.dumps(dict(
         date=d, status=status_line(res), ok=res["ok"], total=res["total"], failed=len(res["errors"]),
         new=len(res["new"]), review=len(res["review"]), older=len(res.get("older", [])),
-        baseline=len(res["baseline"]), unclassified=len(res["unclassified"]), window_hours=win), indent=1))
+        baseline=len(res["baseline"]), unclassified=len(res["unclassified"]), window_hours=win,
+        zero_job_warnings=sum(1 for w in res["warnings"] if "returned 0 jobs" in w), stamp=st), indent=1))
+    (REPORTS / "latest.json").write_text(json.dumps({"stamp": st, "date": d, "run_id": os.environ.get("GITHUB_RUN_ID", "")}))
     return md
 
 def maybe_email(subject, body):
@@ -610,6 +672,44 @@ def discover(companies, getter=http_json):
             time.sleep(0.2)
     return found
 
+WD_HOSTS = ("wd1", "wd3", "wd5", "wd12", "wd103", "wd501")
+WD_SITE_GUESSES = ("External", "Careers", "careers", "External_Careers", "{t}", "{t}_Careers", "{t}Careers", "{T}")
+
+def _wd_site_from_root(host, opener=None):
+    """Workday career-site roots usually redirect to /<lang>/<site> or /<site>; return <site> or None."""
+    opener = opener or (lambda url: urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=15))
+    try:
+        with opener(f"https://{host}/") as r:
+            final = r.geturl()
+    except Exception:
+        return None
+    parts = [p for p in urllib.parse.urlparse(final).path.split("/") if p]
+    parts = [p for p in parts if not re.fullmatch(r"[a-z]{2}-[A-Z]{2}", p)]
+    return parts[0] if parts else None
+
+def discover_workday(company, tenants, poster=None, root_site=_wd_site_from_root):
+    """Find a working Workday career site for any of the tenant guesses. Returns candidate rows."""
+    poster = poster or (lambda url: http_json(url, {"appliedFacets": {}, "limit": 1, "offset": 0, "searchText": ""}, timeout=15, retries=0))
+    found = []
+    for t in tenants:
+        for wd in WD_HOSTS:
+            host = f"{t}.{wd}.myworkdayjobs.com"
+            guesses = [g.format(t=t, T=t.capitalize()) for g in WD_SITE_GUESSES]
+            site = root_site(host)
+            if site:
+                guesses.insert(0, site)
+            for g in dict.fromkeys(guesses):
+                try:
+                    js = poster(f"https://{host}/wday/cxs/{t}/{g}/jobs")
+                except Exception:
+                    continue
+                if isinstance(js, dict) and "total" in js:
+                    found.append(dict(company=company, ats="workday", slug=t, wd_host=host, wd_site=g,
+                                      board_name=f"{js.get('total')} jobs", name_match="tenant name - check the site is the company's"))
+                    return found
+            time.sleep(0.2)
+    return found
+
 # ============================================================== main
 def main(argv=None):
     ap = argparse.ArgumentParser()
@@ -628,8 +728,15 @@ def main(argv=None):
         with open(a.master, newline="", encoding="utf-8") as f:
             todo = [r["Company_Name"] for r in csv.DictReader(f) if r["Company_Name"] not in have]
         rows = discover(todo)
+        cand = HERE / "atlanta_candidates.csv"
+        if cand.exists():
+            with open(cand, newline="", encoding="utf-8") as f:
+                for r in csv.DictReader(f):
+                    if r["company"] in have or not r.get("workday_tenant_guesses"):
+                        continue
+                    rows += discover_workday(r["company"], [t.strip() for t in r["workday_tenant_guesses"].split(";") if t.strip()])
         with open(HERE / "discovered_sources.csv", "w", newline="") as f:
-            w = csv.DictWriter(f, fieldnames=["company", "ats", "slug", "board_name", "name_match"])
+            w = csv.DictWriter(f, fieldnames=["company", "ats", "slug", "wd_host", "wd_site", "board_name", "name_match"], extrasaction="ignore")
             w.writeheader(); w.writerows(rows)
         print(f"{len(rows)} candidate boards written to discovered_sources.csv (review, then add to ats_sources.csv)")
         return 0

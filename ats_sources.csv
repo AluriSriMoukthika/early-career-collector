@@ -54,3 +54,5 @@ Uber Freight,greenhouse,uberfreight,,,1,WORKING,92,2026-11-10 (browser),found by
 Plaid,ashby,plaid,,,1,WORKING,142,2026-11-10 (browser),found by name probe; company named in postings
 Snowflake,ashby,snowflake,,,1,WORKING,373,2026-11-10 (browser),found by name probe; company named in postings
 Cursor (Anysphere),ashby,cursor,,,1,WORKING,115,2026-11-10 (browser),found by name probe; company named in postings
+Federal Reserve Bank of Atlanta,workday,rb,rb.wd5.myworkdayjobs.com,FRS,1,UNTESTED,,,"URL from search (official FRS careers site, all Reserve Banks); Atlanta roles appear via location"
+Florence Healthcare,greenhouse,florencehealthcare,,,1,UNTESTED,,,Greenhouse board seen in search
