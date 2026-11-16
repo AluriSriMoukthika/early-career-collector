@@ -304,6 +304,7 @@ def fetch_workday(src, seen_ids=frozenset(), today=None, baseline=False):
         path = p.get("externalPath", "")
         meta = {"time type": p.get("timeType")}
         desc, country = "", ""
+        location = p.get("locationsText", "")
         if path in tagged:
             typ, why = tagged[path]
             meta["facet"] = "co-op" if typ == "COOP" else why.split("=", 1)[1]
@@ -315,12 +316,18 @@ def fetch_workday(src, seen_ids=frozenset(), today=None, baseline=False):
                 info = http_json(f"{base}{path}").get("jobPostingInfo", {})
                 desc, country = strip_html(info.get("jobDescription", "")), (info.get("country") or {}).get("descriptor", "")
                 details += 1
+                # list views shorten multi-location postings to "4 Locations"; the detail has the real list
+                locs = [l for l in [info.get("location")] + list(info.get("additionalLocations") or []) if l]
+                if locs and (re.fullmatch(r"\d+\s+locations?", location.strip(), re.I) or not location):
+                    location = "; ".join(locs)
+                    if len(locs) > 1:
+                        country = ""           # judge by the locations themselves, not just the primary one
             except Exception:
                 pass
         elif path not in seen_ids:
             meta["_detail_skipped"] = "yes"
         yield dict(id=path, title=p.get("title", ""), url=f"https://{host}/{site}{path}",
-                   location=p.get("locationsText", ""), country=country,
+                   location=location, country=country,
                    posted=workday_posted(p.get("postedOn"), today), posted_rel=p.get("postedOn") or "",
                    meta=meta, desc=desc)
 
@@ -455,7 +462,7 @@ def run(sources, now=None, fetch=None):
             elif status == "REVIEW" and a["relevance"] == "BORDERLINE":
                 status = "UNCLASSIFIED"
             elif status == "UNCLASSIFIED" and a["relevance"] == "MATCH":
-                status, typ, why = "REVIEW", "Early-Career Full-Time", "relevant role, experience level not stated"
+                status, typ, why = "REVIEW", "Level not stated", "relevant role, experience level not stated"
             age = posting_age_hours(j, now)
             yrs = min_years(j.get("desc", ""))
             row = dict(company=s["company"], title=j["title"].strip(), type=typ or "-", status=status, reason=why,
