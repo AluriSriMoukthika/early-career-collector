@@ -12,6 +12,11 @@ on:
         default: run
         type: choice
         options: [run, verify, discover, test-notification]
+      source:
+        description: "manual = run now (default) | external = sent by the outside scheduler; follows the five check times"
+        default: manual
+        type: choice
+        options: [manual, external]
 permissions:
   contents: write   # save history and reports
   issues: write     # post the daily report as an issue (GitHub emails it to you)
@@ -29,6 +34,8 @@ jobs:
 
       - name: Schedule guard
         id: guard
+        env:
+          GUARD_TRIGGER: ${{ github.event.inputs.source || '' }}
         run: python scripts/schedule_guard.py
 
       - name: Unit tests
