@@ -69,3 +69,87 @@ FullStory,ashby,fullstory,,,1,UNTESTED,11,2026-11-15 (discover on GitHub),Atlant
 Greenlight Financial Technology,lever,greenlight,,,1,UNTESTED,16,2026-11-15 (discover on GitHub),Atlanta HQ; confirmed by user 2026-11-15
 Flock Safety,ashby,flock,,,0,FAILED,11,2026-11-15 (user check),"WRONG COMPANY: jobs.ashbyhq.com/flock is FLOCK (UK insurance, London/Bristol/Leeds/Manchester), not Flock Safety. Flock Safety feed still unknown."
 Applied Intuition,ashby,applied,,,1,UNTESTED,325,2026-11-15 (discover on GitHub),Replaces failed greenhouse:appliedintuition; confirmed by user 2026-11-15
+Elevance Health,workday,elevancehealth,elevancehealth.wd1.myworkdayjobs.com,ANT,1,UNTESTED,238,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Coca-Cola Company,workday,coke,coke.wd1.myworkdayjobs.com,coca-cola-careers,1,UNTESTED,205,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+The Home Depot,workday,homedepot,homedepot.wd5.myworkdayjobs.com,CareerDepot,1,UNTESTED,936,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Warner Bros. Discovery,workday,warnerbros,warnerbros.wd5.myworkdayjobs.com,global,1,UNTESTED,185,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Capital One,workday,capitalone,capitalone.wd12.myworkdayjobs.com,Capital_One,1,UNTESTED,2071,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Salesforce,workday,salesforce,salesforce.wd12.myworkdayjobs.com,External_Career_Site,1,UNTESTED,1573,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Adobe,workday,adobe,adobe.wd5.myworkdayjobs.com,external_experienced,1,UNTESTED,251,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Workday,workday,workday,workday.wd5.myworkdayjobs.com,Workday,1,UNTESTED,359,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+PayPal,workday,paypal,paypal.wd1.myworkdayjobs.com,jobs,1,UNTESTED,341,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+CrowdStrike,workday,crowdstrike,crowdstrike.wd5.myworkdayjobs.com,crowdstrikecareers,1,UNTESTED,384,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Autodesk,workday,autodesk,autodesk.wd1.myworkdayjobs.com,Ext,0,FAILED,4,2026-11-16 (discover on GitHub),REJECTED: only 4 jobs - sub-site
+Zoom,workday,zoom,zoom.wd5.myworkdayjobs.com,Zoom,1,UNTESTED,69,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Zillow,workday,zillow,zillow.wd5.myworkdayjobs.com,Zillow_Group_External,1,UNTESTED,176,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+HP Inc.,workday,hp,hp.wd5.myworkdayjobs.com,ExternalCareerSite,1,UNTESTED,933,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Hewlett Packard Enterprise,workday,hpe,hpe.wd5.myworkdayjobs.com,Jobsathpe,1,UNTESTED,1775,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Bank of America,workday,ghr,ghr.wd1.myworkdayjobs.com,Lateral-US,1,UNTESTED,2002,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Wells Fargo,workday,wf,wf.wd1.myworkdayjobs.com,WellsFargoJobs,1,UNTESTED,1291,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Citi,workday,citi,citi.wd5.myworkdayjobs.com,2,1,UNTESTED,2000,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Mastercard,workday,mastercard,mastercard.wd1.myworkdayjobs.com,CorporateCareers,1,UNTESTED,825,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+BlackRock,workday,blackrock,blackrock.wd1.myworkdayjobs.com,BlackRock_Professional,1,UNTESTED,269,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Fidelity Investments,workday,fmr,fmr.wd1.myworkdayjobs.com,FidelityCareers,1,UNTESTED,887,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Freddie Mac,workday,freddiemac,freddiemac.wd5.myworkdayjobs.com,External,1,UNTESTED,68,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Vanguard,workday,vanguard,vanguard.wd5.myworkdayjobs.com,vanguard_external,1,UNTESTED,311,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+State Street,workday,statestreet,statestreet.wd1.myworkdayjobs.com,Global,1,UNTESTED,1140,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+CME Group,workday,cmegroup,cmegroup.wd1.myworkdayjobs.com,cme_careers,1,UNTESTED,76,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+USAA,workday,usaa,usaa.wd1.myworkdayjobs.com,USAAJOBSWD,1,UNTESTED,214,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Allstate,workday,allstate,allstate.wd5.myworkdayjobs.com,allstate_careers,1,UNTESTED,396,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Travelers,workday,travelers,travelers.wd5.myworkdayjobs.com,External,1,UNTESTED,409,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Prudential Financial,workday,pru,pru.wd5.myworkdayjobs.com,Careers,1,UNTESTED,188,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+CVS Health,workday,cvshealth,cvshealth.wd1.myworkdayjobs.com,CVS_Health_Careers,1,UNTESTED,18893,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Johnson & Johnson,workday,jj,jj.wd5.myworkdayjobs.com,JJ,1,UNTESTED,1714,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Nationwide,workday,nationwide,nationwide.wd1.myworkdayjobs.com,Nationwide_Career,1,UNTESTED,145,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Humana,workday,humana,humana.wd5.myworkdayjobs.com,Humana_External_Career_Site,1,UNTESTED,307,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Merck,workday,msd,msd.wd5.myworkdayjobs.com,SearchJobs,1,UNTESTED,799,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Cigna Group,workday,cigna,cigna.wd5.myworkdayjobs.com,cignacareers,1,UNTESTED,517,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Pfizer,workday,pfizer,pfizer.wd1.myworkdayjobs.com,PfizerCareers,1,UNTESTED,700,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Bristol Myers Squibb,workday,bristolmyerssquibb,bristolmyerssquibb.wd5.myworkdayjobs.com,BMS,1,UNTESTED,638,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Gilead Sciences,workday,gilead,gilead.wd1.myworkdayjobs.com,gileadcareers,1,UNTESTED,412,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Moderna,workday,modernatx,modernatx.wd1.myworkdayjobs.com,M_tx,1,UNTESTED,242,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Amgen,workday,amgen,amgen.wd1.myworkdayjobs.com,Careers,1,UNTESTED,1884,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Stryker,workday,stryker,stryker.wd1.myworkdayjobs.com,StrykerCareers,1,UNTESTED,1461,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Medtronic,workday,medtronic,medtronic.wd1.myworkdayjobs.com,MedtronicCareers,1,UNTESTED,938,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Abbott,workday,abbott,abbott.wd5.myworkdayjobs.com,abbottcareers,1,UNTESTED,2000,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Thermo Fisher Scientific,workday,thermofisher,thermofisher.wd5.myworkdayjobs.com,ThermoFisherCareers,1,UNTESTED,3200,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+GE HealthCare,workday,gehc,gehc.wd5.myworkdayjobs.com,GEHC_ExternalSite,1,UNTESTED,1066,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+GE Aerospace,workday,geaerospace,geaerospace.wd5.myworkdayjobs.com,GE_ExternalSite,1,UNTESTED,593,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Illumina,workday,illumina,illumina.wd1.myworkdayjobs.com,illumina-careers,1,UNTESTED,168,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Danaher,workday,danaher,danaher.wd1.myworkdayjobs.com,DanaherJobs,1,UNTESTED,1460,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Caterpillar,workday,cat,cat.wd5.myworkdayjobs.com,CaterpillarCareers,1,UNTESTED,1022,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Rockwell Automation,workday,rockwellautomation,rockwellautomation.wd1.myworkdayjobs.com,External_Rockwell_Automation,1,UNTESTED,445,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+3M,workday,3m,3m.wd1.myworkdayjobs.com,Search,1,UNTESTED,782,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Chevron,workday,chevron,chevron.wd5.myworkdayjobs.com,jobs,1,UNTESTED,156,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+American Electric Power,workday,aep,aep.wd1.myworkdayjobs.com,AEPCareerSite,1,UNTESTED,183,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Duke Energy,workday,dukeenergy,dukeenergy.wd1.myworkdayjobs.com,search,1,UNTESTED,69,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Dow,workday,dow,dow.wd1.myworkdayjobs.com,ExternalCareers,1,UNTESTED,191,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Nike,workday,nike,nike.wd1.myworkdayjobs.com,nke,1,UNTESTED,681,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+eBay,workday,ebay,ebay.wd5.myworkdayjobs.com,apply,1,UNTESTED,291,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Target,workday,target,target.wd5.myworkdayjobs.com,targetcareers,1,UNTESTED,2000,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Chewy,workday,chewy,chewy.wd5.myworkdayjobs.com,External,1,UNTESTED,238,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Booz Allen Hamilton,workday,bah,bah.wd1.myworkdayjobs.com,BAH_Jobs,1,UNTESTED,2000,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Accenture,workday,accenture,accenture.wd103.myworkdayjobs.com,AccentureCareers,1,UNTESTED,2000,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+General Motors,workday,generalmotors,generalmotors.wd5.myworkdayjobs.com,Careers_GM,1,UNTESTED,656,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Northrop Grumman,workday,ngc,ngc.wd1.myworkdayjobs.com,Northrop_Grumman_External_Site,1,UNTESTED,3683,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+RTX,workday,globalhr,globalhr.wd5.myworkdayjobs.com,REC_RTX_Ext_Gateway,1,UNTESTED,4531,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Ryder,workday,ryder,ryder.wd5.myworkdayjobs.com,RyderCareers,1,UNTESTED,403,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Boeing,workday,boeing,boeing.wd1.myworkdayjobs.com,EXTERNAL_CAREERS,1,UNTESTED,817,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Verizon,workday,verizon,verizon.wd12.myworkdayjobs.com,verizon-careers,1,UNTESTED,1207,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+General Dynamics,workday,gdit,gdit.wd5.myworkdayjobs.com,External_Career_Site,1,UNTESTED,1305,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+T-Mobile,workday,tmobile,tmobile.wd1.myworkdayjobs.com,External,1,UNTESTED,2000,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Leidos,workday,leidos,leidos.wd5.myworkdayjobs.com,External,1,UNTESTED,2000,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Motorola Solutions,workday,motorolasolutions,motorolasolutions.wd5.myworkdayjobs.com,Careers,1,UNTESTED,872,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Intel,workday,intel,intel.wd1.myworkdayjobs.com,External,1,UNTESTED,863,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+NVIDIA,workday,nvidia,nvidia.wd5.myworkdayjobs.com,NVIDIAExternalCareerSite,1,UNTESTED,2000,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Broadcom,workday,broadcom,broadcom.wd1.myworkdayjobs.com,External_Career,1,UNTESTED,404,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Micron Technology,workday,micron,micron.wd1.myworkdayjobs.com,External,1,UNTESTED,2897,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Applied Materials,workday,amat,amat.wd1.myworkdayjobs.com,External,1,UNTESTED,2000,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+KLA,workday,kla,kla.wd1.myworkdayjobs.com,Search,1,UNTESTED,1153,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Analog Devices,workday,analogdevices,analogdevices.wd1.myworkdayjobs.com,External,1,UNTESTED,780,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Marvell Technology,workday,marvell,marvell.wd1.myworkdayjobs.com,MarvellCareers,1,UNTESTED,356,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+GlobalFoundries,workday,globalfoundries,globalfoundries.wd1.myworkdayjobs.com,External,1,UNTESTED,866,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+The Walt Disney Company,workday,disney,disney.wd5.myworkdayjobs.com,disneycareer,0,FAILED,12,2026-11-16 (discover on GitHub),"REJECTED: only 12 jobs - sub-site, not the main careers site"
+Cadence Design Systems,workday,cadence,cadence.wd1.myworkdayjobs.com,External_Careers,1,UNTESTED,686,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+TransUnion,workday,transunion,transunion.wd5.myworkdayjobs.com,TransUnion,1,UNTESTED,205,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
+Qualcomm,workday,qualcomm,qualcomm.wd12.myworkdayjobs.com,External,0,FAILED,0,2026-11-16 (discover on GitHub),REJECTED: 0 jobs - wrong site name

@@ -92,6 +92,8 @@ GitHub pauses scheduled workflows in repos with no activity for 60 days. The dai
 ## Settings (environment variables)
 `MAX_AGE_HOURS` (default 24): only postings published within this many hours are emailed. If a daily run was missed, the window widens to cover the gap. Older postings detected for the first time stay in the daily CSV, marked `OLDER_THAN_WINDOW`.
 `EMAIL_CAP_PER_COMPANY` (default 10): rows per company in the email; the rest are counted ("+N more … in today's CSV") and listed in the CSV.
+`FETCH_WORKERS` (default 8): companies read in parallel; each site still gets one request at a time.
+`WORKDAY_FOCUS_THRESHOLD` (default 2000): Workday sites with more postings are read only through their technology/data/business/early-career job-family filters, when the site has such filters. The report lists which sites were narrowed.
 `WORKDAY_DETAIL_CAP` (default 150): description lookups per Workday company per run. Titles that are clearly unrelated (store, driver, warehouse …) are rejected on the title alone, with no description lookup. Postings over the cap are deferred to the next run, not dropped.
 `FAIL_EXIT_RATIO` (default 0.25): share of failed sources that marks the run as failed.
 

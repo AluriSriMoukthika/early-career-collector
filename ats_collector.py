@@ -33,7 +33,13 @@ WORKDAY_DETAIL_CAP = int(os.environ.get("WORKDAY_DETAIL_CAP", "150"))   # detail
 FAIL_EXIT_RATIO = float(os.environ.get("FAIL_EXIT_RATIO", "0.25"))       # >25% failed sources -> exit 2
 MAX_AGE_HOURS = float(os.environ.get("MAX_AGE_HOURS", "24"))             # email only postings this fresh
 EMAIL_CAP_PER_COMPANY = int(os.environ.get("EMAIL_CAP_PER_COMPANY", "10"))  # rows per company in the email
-SEEN_RETENTION_DAYS = int(os.environ.get("SEEN_RETENTION_DAYS", "120"))   # older history can't pass the 24h rule anyway
+SEEN_RETENTION_DAYS = int(os.environ.get("SEEN_RETENTION_DAYS", "120"))
+FETCH_WORKERS = int(os.environ.get("FETCH_WORKERS", "8"))                 # companies read in parallel (one request at a time each)
+WORKDAY_FOCUS_THRESHOLD = int(os.environ.get("WORKDAY_FOCUS_THRESHOLD", "2000"))  # bigger sites: relevant job families only
+FOCUS_FAMILY = re.compile(r"information technology|\bit\b|technolog|\btech\b|data|analytic|engineer|software|digital|research|"
+                          r"scien|cyber|security|product|finance|financial|corporate|business|strategy|innovation|automation|"
+                          r"artificial|machine|quantitative|actuar|risk|intern|student|graduate|early|university|campus|"
+                          r"program|rotation|professional", re.I)   # older history can't pass the 24h rule anyway
 
 TYPES = ["Internship", "New Graduate", "Entry-Level", "Early-Career Full-Time", "Graduate Program", "Rotational Program"]
 
@@ -294,16 +300,44 @@ def fetch_workday(src, seen_ids=frozenset(), today=None, baseline=False):
             if off + 20 >= js.get("total", 0):
                 break
             time.sleep(0.3)
-    postings = list(first.get("jobPostings", []))
-    for off in range(20, min(total, 5000), 20):
-        postings += http_json(f"{base}/jobs", {"appliedFacets": {}, "limit": 20, "offset": off, "searchText": ""}).get("jobPostings", [])
-        time.sleep(0.3)
+    focus = {}
+    if total > WORKDAY_FOCUS_THRESHOLD:
+        # very large site: read only job families relevant to the profile, if the site offers such a filter
+        for f in first.get("facets") or []:
+            if not re.search(r"family|category|function|department|area|group", f.get("facetParameter", ""), re.I):
+                continue
+            ids = [v["id"] for v in f.get("values") or [] if v.get("descriptor") and FOCUS_FAMILY.search(v["descriptor"])
+                   and not COOP.search(v["descriptor"])]
+            if ids:
+                focus = {f["facetParameter"]: ids}
+                break
+    if focus:
+        postings, seen_paths = [], set()
+        for off in range(0, 5000, 20):
+            js = http_json(f"{base}/jobs", {"appliedFacets": focus, "limit": 20, "offset": off, "searchText": ""})
+            for p in js.get("jobPostings", []):
+                if p.get("externalPath") not in seen_paths:
+                    seen_paths.add(p.get("externalPath")); postings.append(p)
+            if off + 20 >= js.get("total", 0):
+                break
+            time.sleep(0.2)
+        for path, (typ, why) in tagged.items():           # early-career postings outside those families still count
+            if path not in seen_paths:
+                postings.append({"externalPath": path, "title": path.rsplit("/", 1)[-1].replace("-", " ").rsplit("_", 1)[0],
+                                 "locationsText": "", "postedOn": ""})
+        FOCUSED_SITES.add(src.get("company", host))
+    else:
+        postings = list(first.get("jobPostings", []))
+        for off in range(20, min(total, 5000), 20):
+            postings += http_json(f"{base}/jobs", {"appliedFacets": {}, "limit": 20, "offset": off, "searchText": ""}).get("jobPostings", [])
+            time.sleep(0.2)
     details = 0
     for p in postings:
         path = p.get("externalPath", "")
         meta = {"time type": p.get("timeType")}
         desc, country = "", ""
         location = p.get("locationsText", "")
+        title = p.get("title", "")
         if path in tagged:
             typ, why = tagged[path]
             meta["facet"] = "co-op" if typ == "COOP" else why.split("=", 1)[1]
@@ -315,6 +349,7 @@ def fetch_workday(src, seen_ids=frozenset(), today=None, baseline=False):
                 info = http_json(f"{base}{path}").get("jobPostingInfo", {})
                 desc, country = strip_html(info.get("jobDescription", "")), (info.get("country") or {}).get("descriptor", "")
                 details += 1
+                title = info.get("title") or title
                 # list views shorten multi-location postings to "4 Locations"; the detail has the real list
                 locs = [l for l in [info.get("location")] + list(info.get("additionalLocations") or []) if l]
                 if locs and (re.fullmatch(r"\d+\s+locations?", location.strip(), re.I) or not location):
@@ -325,7 +360,7 @@ def fetch_workday(src, seen_ids=frozenset(), today=None, baseline=False):
                 pass
         elif path not in seen_ids:
             meta["_detail_skipped"] = "yes"
-        yield dict(id=path, title=p.get("title", ""), url=f"https://{host}/{site}{path}",
+        yield dict(id=path, title=title, url=f"https://{host}/{site}{path}",
                    location=location, country=country,
                    posted=workday_posted(p.get("postedOn"), today), posted_rel=p.get("postedOn") or "",
                    meta=meta, desc=desc)
@@ -360,6 +395,8 @@ def posting_age_hours(job, now):
         t = t.replace(tzinfo=dt.timezone.utc)
     return max(0.0, (now - t).total_seconds() / 3600)
 
+FOCUSED_SITES = set()      # filled by fetch_workday, reported in the run summary
+
 FETCHERS = {"greenhouse": fetch_greenhouse, "lever": fetch_lever, "ashby": fetch_ashby, "workday": fetch_workday}
 
 # ============================================================== state helpers
@@ -389,17 +426,25 @@ def run(sources, now=None, fetch=None):
     sstate = load_json(SRC_STATE, {})
     res = dict(date=today, stamp=now.strftime("%Y-%m-%d_%H%M"), new=[], baseline=[], review=[], unclassified=[], older=[], errors=[], warnings=[],
                ok=0, total=len(sources), excluded={}, window_hours=MAX_AGE_HOURS)
+    FOCUSED_SITES.clear()
+    import concurrent.futures as cf
+    prepared = []
     for s in sources:
         k = src_key(s)
         st = sstate.setdefault(k, {"company": s["company"], "baselined": False, "consecutive_failures": 0})
-        seen_ids = {key.split("|", 1)[1] for key in seen if key.startswith(k + "|")}
+        prepared.append((s, k, st, {key.split("|", 1)[1] for key in seen if key.startswith(k + "|")}))
+    def get(item):
+        s, k, st, seen_ids = item
+        if fetch:
+            return list(fetch(s, seen_ids))
+        if s["ats"].lower() == "workday":
+            return list(fetch_workday(s, seen_ids, now.date(), baseline=not st["baselined"]))
+        return list(FETCHERS[s["ats"].lower()](s))
+    with cf.ThreadPoolExecutor(max_workers=max(1, FETCH_WORKERS)) as ex:      # network in parallel ...
+        futures = [ex.submit(get, it) for it in prepared]
+    for (s, k, st, seen_ids), fut in zip(prepared, futures):                  # ... results processed in order
         try:
-            if fetch:
-                jobs = list(fetch(s, seen_ids))
-            elif s["ats"].lower() == "workday":
-                jobs = list(fetch_workday(s, seen_ids, now.date(), baseline=not st["baselined"]))
-            else:
-                jobs = list(FETCHERS[s["ats"].lower()](s))
+            jobs = fut.result()
         except Exception as e:
             st["consecutive_failures"] += 1
             st["last_error"] = f"{today}: {type(e).__name__}: {str(e)[:200]}"
@@ -487,6 +532,8 @@ def run(sources, now=None, fetch=None):
                                    + ("; source stays in baseline mode until all are processed" if first_time else ""))
         else:
             st["baselined"] = True   # a source leaves baseline mode only once every posting has been processed
+    for name in sorted(FOCUSED_SITES):
+        res["warnings"].append(f"{name}: very large site - checked its technology/data/business/early-career job families only")
     res["warnings"] = sorted(set(res["warnings"]))
     cutoff = (now.date() - dt.timedelta(days=SEEN_RETENTION_DAYS)).isoformat()
     seen = {k: v for k, v in seen.items() if v >= cutoff}
@@ -628,9 +675,15 @@ def email_subject(res):
 def verify(sources, all_rows=None, fetch=None):
     out = []
     tested = {src_key(s) for s in sources}
+    import concurrent.futures as cf
+    def get(s):
+        return list(fetch(s, set()) if fetch else (fetch_workday(s, baseline=True) if s["ats"].lower() == "workday"
+                                                   else FETCHERS[s["ats"].lower()](s)))
+    with cf.ThreadPoolExecutor(max_workers=max(1, FETCH_WORKERS)) as ex:
+        futures = {id(s): ex.submit(get, s) for s in sources}
     for s in sources:
         try:
-            jobs = list(fetch(s, set()) if fetch else (fetch_workday(s) if s["ats"].lower() == "workday" else FETCHERS[s["ats"].lower()](s)))
+            jobs = futures[id(s)].result()
             us = [j for j in jobs if is_us(j.get("location"), j.get("country", "")) is not False]
             early = sum(1 for j in us if classify(j)[0] == "CONFIRMED")
             out.append(dict(company=s["company"], ats=s["ats"], slug=s["slug"], status="WORKING" if jobs else "WORKING_EMPTY",
