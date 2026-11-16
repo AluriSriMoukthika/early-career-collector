@@ -144,8 +144,16 @@ def auth_assessment(desc):
 def work_auth(desc):
     return auth_assessment(desc)[1]
 
+# Start of a "preferred / nice to have" SECTION. Only heading-like phrases count: bare words such as
+# "ideal" ("The ideal candidate ...") or "bonus" (benefits) must not cut off the real requirements.
+PREFERRED = re.compile(
+    r"preferred (qualifications|skills|experience|requirements|education)|(qualifications|skills) preferred\s*:|"
+    r"\bpreferred\s*:|nice[- ]to[- ]haves?|bonus points|\bpluses\b|what could set you apart|desired (skills|qualifications|experience)|"
+    r"additional (preferred )?qualifications|it would be great if|you might also have|extra credit|"
+    r"preferred (but not required|candidates? will)", re.I)
+
 def _required_text(desc):
-    m = re.search(r"\bpreferred\b|nice[- ]to[- ]have|bonus|\bideal(ly)?\b", desc, re.I)
+    m = PREFERRED.search(desc)
     return desc[:m.start()] if m else desc
 
 def education(title, desc):

@@ -84,8 +84,7 @@ def _flat(v):
     s = str(v).strip()
     return [] if s.lower() in ("", "null", "none") else [s]
 
-PREFERRED = re.compile(r"\bpreferred\b|nice[- ]to[- ]have|bonus points|\bpluses\b|\bbonus\b|desired (skills|qualifications|experience)|"
-                       r"\bideal(ly)?\b|it would be great if|additional qualifications", re.I)
+PREFERRED = relevance.PREFERRED          # heading-like "preferred / nice to have" sections only
 
 def min_years(text):
     """Years of experience REQUIRED by the posting, or None.
@@ -527,7 +526,8 @@ def _table(rows, with_reason=False):
 def _entries(rows, review=False):
     out = []
     for n in rows:
-        out += [f"- **{n['title']}** - {n['company']}",
+        tag = {"Atlanta metro": "📍 Atlanta area - ", "Georgia": "📍 Georgia - "}.get(n.get("region"), "") if review else ""
+        out += [f"- {tag}**{n['title']}** - {n['company']}",
                 f"  - {n['location']} | {n.get('employment', 'Not stated')} | {n.get('category', '-')} | {n['type']}",
                 f"  - Experience: {n.get('experience', 'Not stated')} | Education: {n.get('education', 'Not stated')} | Posted: {n['posted']}",
                 f"  - Work authorization: {n.get('work_auth', 'Not stated (unverified)')}",
@@ -733,7 +733,18 @@ def discover_workday(company, tenants, poster=None, root_site=_wd_site_from_root
     """Find a working Workday career site for any of the tenant guesses. Returns candidate rows."""
     poster = poster or (lambda url: http_json(url, {"appliedFacets": {}, "limit": 1, "offset": 0, "searchText": ""}, timeout=8, retries=0))
     found = []
-    for t in tenants:
+    # exact guesses first: "tenant.wdN/Site"
+    for g in [t for t in tenants if "/" in t]:
+        hostpart, site = g.split("/", 1)
+        t, wd = hostpart.split(".", 1)
+        try:
+            js = poster(f"https://{t}.{wd}.myworkdayjobs.com/wday/cxs/{t}/{site}/jobs")
+            if isinstance(js, dict) and "total" in js:
+                return [dict(company=company, ats="workday", slug=t, wd_host=f"{t}.{wd}.myworkdayjobs.com", wd_site=site,
+                             board_name=f"{js.get('total')} jobs", name_match="tenant name - check the site is the company's")]
+        except Exception:
+            pass
+    for t in [t for t in tenants if "/" not in t]:
         for wd in WD_HOSTS:
             host = f"{t}.{wd}.myworkdayjobs.com"
             guesses = [g.format(t=t, T=t.capitalize()) for g in WD_SITE_GUESSES]
@@ -762,8 +773,17 @@ def discover_all(todo, wd_tenants, out_csv, budget_minutes=None, workers=8, prob
     import concurrent.futures as cf
     budget = 60 * float(budget_minutes if budget_minutes is not None else os.environ.get("DISCOVER_MAX_MINUTES", "40"))
     done = load_json(PROGRESS, {})
-    queue = [c for c in todo if c not in done]
-    probe = probe or (lambda name: discover([name]) + (discover_workday(name, wd_tenants[name]) if wd_tenants.get(name) else []))
+    # board probes (Greenhouse/Lever/Ashby) and Workday probes are tracked separately ("<name>" / "<name>|wd"),
+    # so adding Workday guesses later re-probes only Workday
+    def need(name):
+        return name not in done or (wd_tenants.get(name) and f"{name}|wd" not in done)
+    queue = [c for c in todo if need(c)]
+    def default_probe(name):
+        rows = discover([name]) if name not in done else []
+        if wd_tenants.get(name) and f"{name}|wd" not in done:
+            rows += discover_workday(name, wd_tenants[name])
+        return rows
+    probe = probe or default_probe
     new_file = not out_csv.exists()
     start, found, finished = now(), 0, 0
     with open(out_csv, "a", newline="", encoding="utf-8") as fh, cf.ThreadPoolExecutor(max_workers=workers) as ex:
@@ -789,9 +809,11 @@ def discover_all(todo, wd_tenants, out_csv, budget_minutes=None, workers=8, prob
                 w.writerows(rows); fh.flush()
                 found += len(rows); finished += 1
                 done[name] = dt.date.today().isoformat()
+                if wd_tenants.get(name):
+                    done[f"{name}|wd"] = dt.date.today().isoformat()
                 save_json(PROGRESS, done)
             submit_more()
-    remaining = len([c for c in todo if c not in done])
+    remaining = len([c for c in todo if need(c)])
     print(f"discover: probed {finished} companies this run, {found} candidate boards found, {remaining} still to probe"
           + (" (time budget reached - run discover again to continue)" if remaining else ""))
     return finished, found, remaining
@@ -814,14 +836,18 @@ def main(argv=None):
         with open(a.master, newline="", encoding="utf-8") as f:
             master = [r for r in csv.DictReader(f) if r["Company_Name"] not in have]
         wd = {}
-        cand = HERE / "atlanta_candidates.csv"
-        if cand.exists():
-            with open(cand, newline="", encoding="utf-8") as f:
-                for r in csv.DictReader(f):
-                    wd[r["company"]] = [t.strip() for t in (r.get("workday_tenant_guesses") or "").split(";") if t.strip()]
-        # Atlanta-area employers first, then everyone else
-        atl = [r["Company_Name"] for r in master if "Atlanta-metro" in r.get("Notes", "")]
-        todo = atl + [r["Company_Name"] for r in master if r["Company_Name"] not in atl]
+        for fname, col in (("atlanta_candidates.csv", "workday_tenant_guesses"), ("workday_candidates.csv", "workday_guesses")):
+            if (HERE / fname).exists():
+                with open(HERE / fname, newline="", encoding="utf-8") as f:
+                    for r in csv.DictReader(f):
+                        g = [t.strip() for t in (r.get(col) or "").split(";") if t.strip()]
+                        if g:
+                            wd[r["company"]] = list(dict.fromkeys(wd.get(r["company"], []) + g))
+        # Atlanta-area employers first, then companies with Workday guesses, then everyone else
+        names = [r["Company_Name"] for r in master]
+        atl = [n for r, n in zip(master, names) if "Atlanta-metro" in r.get("Notes", "")]
+        wdn = [n for n in names if n in wd and n not in atl]
+        todo = atl + wdn + [n for n in names if n not in atl and n not in wdn]
         discover_all(todo, wd, HERE / "discovered_sources.csv")
         return 0
     res = run(load_sources(a.sources))
