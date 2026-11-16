@@ -1,0 +1,15 @@
+{
+ "date": "2026-11-16",
+ "status": "OK - all 67 sources checked.",
+ "ok": 67,
+ "total": 67,
+ "failed": 0,
+ "new": 1,
+ "review": 8,
+ "older": 1,
+ "baseline": 0,
+ "unclassified": 3,
+ "window_hours": 24.0,
+ "zero_job_warnings": 0,
+ "stamp": "2026-11-16_1700"
+}
