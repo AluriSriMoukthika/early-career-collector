@@ -1002,3 +1002,95 @@ class TestSaveHistory(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestSimplifyList(TempState):
+    """SimplifyJobs community lists: level from the list, filters still apply, no duplicates with direct feeds."""
+    GH = dict(company="Acme Corp", ats="greenhouse", slug="acme")
+    NG = dict(company="SimplifyJobs New Grad list", ats="simplify", slug="New-Grad-Positions")
+
+    def entry(self, jid, title, company="Widgets Inc", hours=2, sponsorship="Other", degrees=("Bachelor's",),
+              locations=("Atlanta, GA",), active=True):
+        ts = (self.now - dt.timedelta(hours=hours)).timestamp()
+        return dict(id=jid, company_name=company, title=title, url=f"https://x/{jid}", locations=list(locations),
+                    active=active, is_visible=True, date_posted=ts, sponsorship=sponsorship, degrees=list(degrees),
+                    category="Software")
+
+    def lst(self, entries):
+        with mock.patch.object(c, "http_json", return_value=entries):
+            return list(c.fetch_simplify(self.NG, now_ts=self.now.timestamp()))
+
+    def test_fetch_converts_fields_and_drops_inactive_or_old(self):
+        jobs = self.lst([self.entry("1", "Software Engineer", sponsorship="U.S. Citizenship is Required"),
+                         self.entry("2", "Data Analyst", active=False),
+                         self.entry("3", "Data Analyst", hours=24 * 10),
+                         self.entry("4", "Research Scientist", degrees=("PhD",), sponsorship="Does Not Offer Sponsorship")])
+        self.assertEqual([j["id"] for j in jobs], ["1", "4"])
+        self.assertEqual(jobs[0]["company"], "Widgets Inc"); self.assertEqual(jobs[0]["level_hint"], "New Graduate")
+        self.assertIn("citizenship is required", jobs[0]["desc"])
+        self.assertIn("PhD is required", jobs[1]["desc"]); self.assertIn("does not offer visa sponsorship", jobs[1]["desc"])
+
+    def test_run_filters_and_reports_with_list_level(self):
+        entries = [self.entry("1", "Software Engineer"),                                     # level from list -> confirmed
+                   self.entry("2", "Data Engineer", sponsorship="U.S. Citizenship is Required"),  # excluded
+                   self.entry("3", "Senior Data Scientist"),                                 # senior -> excluded
+                   self.entry("4", "Machine Learning Engineer", hours=30),                   # outside 24h -> ignored, not stored
+                   self.entry("5", "Data Analyst", sponsorship="Does Not Offer Sponsorship", locations=("Remote in USA",)),
+                   self.entry("6", "Software Engineer", company="Maple", locations=("Toronto, ON, Canada",)),
+                   self.entry("7", "Registered Nurse")]                                      # unrelated
+        with mock.patch.object(c, "http_json", return_value=entries), mock.patch.object(c.time, "time", return_value=self.now.timestamp()):
+            r = c.run([self.NG], self.now)
+        self.assertEqual(sorted(n["title"] for n in r["new"]), ["Data Analyst", "Software Engineer"])
+        self.assertEqual(r["baseline"], [])                                                  # lists never baseline
+        swe = next(n for n in r["new"] if n["title"] == "Software Engineer")
+        self.assertEqual((swe["company"], swe["type"], swe["region"]), ("Widgets Inc", "New Graduate", "Atlanta metro"))
+        self.assertIn("check the posting", swe["work_auth"])
+        self.assertIn("No Sponsorship", next(n for n in r["new"] if n["title"] == "Data Analyst")["work_auth"])
+        self.assertIn("Excluded — Citizenship/Clearance", r["excluded"])
+        seen = json.loads(c.SEEN.read_text())
+        self.assertNotIn("simplify:New-Grad-Positions|4", seen)                              # old entries never stored
+
+    def test_job_from_direct_feed_is_not_reported_again_by_list(self):
+        c.run([self.GH], self.now, fetch=lambda s, seen: [])                                  # baseline direct feed
+        later = self.now + dt.timedelta(hours=3)
+        direct = [dict(J("Software Engineer I", jid=11, loc="Atlanta, GA"), posted_ts=(later - dt.timedelta(hours=1)).isoformat())]
+        listed = [dict(id="x1", company="Acme", title="Software Engineer I", url="u", location="Atlanta, GA", country="",
+                       posted="", posted_ts=(later - dt.timedelta(hours=1)).isoformat(), meta={}, desc="",
+                       level_hint="New Graduate", aggregator=True)]
+        feeds = {"greenhouse": direct, "simplify": listed}
+        r = c.run([self.NG, self.GH], later, fetch=lambda s, seen: feeds[s["ats"]])
+        self.assertEqual([(n["company"], n["title"]) for n in r["new"]], [("Acme Corp", "Software Engineer I")])
+        self.assertEqual(r["excluded"].get("already reported by another source"), 1)
+        r2 = c.run([self.NG, self.GH], later + dt.timedelta(hours=3), fetch=lambda s, seen: feeds[s["ats"]])
+        self.assertEqual(r2["new"], [])
+        # a different role at the same company is still reported from the list
+        listed.append(dict(listed[0], id="x2", title="Data Analyst"))
+        r3 = c.run([self.NG, self.GH], later + dt.timedelta(hours=4), fetch=lambda s, seen: feeds[s["ats"]])
+        self.assertEqual([n["title"] for n in r3["new"]], ["Data Analyst"])
+
+    def test_fingerprints_expire_after_14_days(self):
+        c.SEEN.parent.mkdir(parents=True, exist_ok=True)
+        c.SEEN.write_text(json.dumps({"fp|acme|old role": "2026-10-01|greenhouse:acme", "greenhouse:acme|1": "2026-10-01"}))
+        c.run([self.GH], self.now, fetch=lambda s, seen: [])
+        seen = json.loads(c.SEEN.read_text())
+        self.assertNotIn("fp|acme|old role", seen); self.assertIn("greenhouse:acme|1", seen)
+
+    def test_defense_employer_list_entries_go_to_review(self):
+        entries = [self.entry("1", "Data Scientist", company="Booz Allen"), self.entry("2", "Data Scientist", company="Affirm"),
+                   self.entry("3", "Software Engineer", company="Peraton", sponsorship="U.S. Citizenship is Required")]
+        with mock.patch.object(c, "http_json", return_value=entries), mock.patch.object(c.time, "time", return_value=self.now.timestamp()):
+            r = c.run([self.NG], self.now)
+        self.assertEqual([n["company"] for n in r["new"]], ["Affirm"])
+        self.assertEqual([n["company"] for n in r["review"]], ["Booz Allen"])
+        self.assertIn("check citizenship/clearance", r["review"][0]["reason"])
+        self.assertIn("Excluded — Citizenship/Clearance", r["excluded"])                 # explicit flag still excludes
+
+    def test_date_only_entries_count_as_today_or_yesterday(self):
+        now_utc = self.now.astimezone(dt.timezone.utc)
+        day = lambda n: dt.datetime.combine(now_utc.date() - dt.timedelta(days=n), dt.time(), dt.timezone.utc).timestamp()
+        entries = [dict(self.entry(str(n), f"Data Analyst {n}"), date_posted=day(n)) for n in (0, 1, 2)]
+        jobs = self.lst(entries)
+        self.assertEqual([j["posted_rel"] for j in jobs], ["Posted Today", "Posted Yesterday", "Posted 2 Days Ago"])
+        with mock.patch.object(c, "http_json", return_value=entries), mock.patch.object(c.time, "time", return_value=self.now.timestamp()):
+            r = c.run([self.NG], self.now)
+        self.assertEqual(sorted(n["title"] for n in r["new"]), ["Data Analyst 0", "Data Analyst 1"])
