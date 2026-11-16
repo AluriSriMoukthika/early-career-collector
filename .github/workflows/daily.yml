@@ -29,6 +29,10 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Load the LATEST main, not the commit from trigger time: a run that waited in the queue
+          # must see the history (state/) saved by the run before it, or it could repeat alerts.
+          ref: main
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
 
