@@ -138,6 +138,9 @@ class TestClassification(unittest.TestCase):
 class TempState(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
+        # never write test reports into the real GitHub run summary
+        e = mock.patch.dict(os.environ); e.start(); self.addCleanup(e.stop)
+        os.environ.pop("GITHUB_STEP_SUMMARY", None)
         for name, val in (("SEEN", self.tmp / "state/seen.json"), ("SRC_STATE", self.tmp / "state/src.json"), ("REPORTS", self.tmp / "reports")):
             p = mock.patch.object(c, name, val); p.start(); self.addCleanup(p.stop)
         self.now = dt.datetime(2026, 11, 10, 8, 0, tzinfo=NY)
@@ -623,6 +626,24 @@ class TestQuietRunsAndHousekeeping(TempState):
         self.assertFalse(any(j["meta"].get("_detail_skipped") for j in jobs))     # skipped ones are not deferred either
         self.assertEqual(rel.assess(jobs[0])["relevance"], "UNRELATED")
 
+    def test_workday_baseline_pass_needs_no_detail_calls(self):
+        posts = [{"title": f"Data Analyst {i}", "externalPath": f"/job/{i}", "locationsText": "Atlanta, GA", "postedOn": "Posted Today"}
+                 for i in range(300)]
+        detail = []
+        def fake(url, payload=None):
+            if payload is None:
+                detail.append(url); return {"jobPostingInfo": {}}
+            o = payload["offset"]
+            return {"total": 300, "facets": [], "jobPostings": posts[o:o + 20]}
+        with mock.patch.object(c, "http_json", side_effect=fake), mock.patch.object(c.time, "sleep"):
+            jobs = list(c.fetch_workday({"wd_host": "t.wd1.myworkdayjobs.com", "slug": "t", "wd_site": "S"},
+                                        today=dt.date(2026, 11, 15), baseline=True))
+        self.assertEqual(len(jobs), 300); self.assertEqual(detail, [])
+        self.assertFalse(any(j["meta"].get("_detail_skipped") for j in jobs))   # nothing deferred -> baseline done in one check
+
+    def test_tests_do_not_write_to_github_summary(self):
+        self.assertNotIn("GITHUB_STEP_SUMMARY", os.environ)
+
     def test_discover_workday_finds_site(self):
         def poster(url):
             if url == "https://acme.wd5.myworkdayjobs.com/wday/cxs/acme/AcmeCareers/jobs": return {"total": 42}
@@ -752,6 +773,22 @@ class TestScheduleGuard(unittest.TestCase):
             self.assertIsNone(g.read_last())
             g.mark_done("2026-11-16T08")
             self.assertEqual(g.read_last(), "2026-11-16T08")
+
+    def test_external_trigger_follows_slot_rule(self):
+        tmp = Path(tempfile.mkdtemp()) / "last_run.json"
+        at_0801 = dt.datetime(2027, 1, 15, 13, 1, tzinfo=dt.timezone.utc)          # 08:01 EST
+        def guard(trigger):
+            out = Path(tempfile.mkdtemp()) / "out"
+            env = {"GITHUB_EVENT_NAME": "workflow_dispatch", "GUARD_TRIGGER": trigger, "GITHUB_OUTPUT": str(out)}
+            with mock.patch.object(g, "LAST", tmp), contextlib.redirect_stdout(io.StringIO()):
+                g.main(["guard"], env, at_0801)
+            return out.read_text()
+        first = guard("external")
+        self.assertIn("run=true", first); self.assertIn("slot=2027-01-15T08", first)
+        with mock.patch.object(g, "LAST", tmp):
+            g.main(["guard", "mark-done", "2027-01-15T08"], {}, at_0801)
+        self.assertIn("run=false", guard("external"))         # second outside call in the same slot is skipped
+        self.assertIn("run=true", guard("manual"))            # the Run workflow button always runs
 
     def test_workflow_cron_matches_five_slots(self):
         wf = (ROOT / ".github/workflows/daily.yml").read_text()   # plain text: PyYAML is not on the runner
