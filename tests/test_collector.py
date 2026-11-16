@@ -131,6 +131,20 @@ class TestClassification(unittest.TestCase):
         self.assertEqual(c.classify(J("Data Analyst", desc=mixed))[0], "EXCLUDED")
         self.assertIsNone(c.min_years("Preferred: 2+ years of experience with Kubernetes"))   # only a preference
 
+    def test_ideal_or_bonus_words_do_not_hide_requirements(self):
+        # Equifax-style posting (structure paraphrased): the "Career" role asked for 5-7 years
+        career = ("The ideal candidate is passionate about data. What you'll do: build models. "
+                  "What experience you need: BS degree in a STEM field; 5-7 years of experience in data science; Python, SQL. "
+                  "What could set you apart: Master's degree; 1+ years of experience with GCP. Benefits: annual bonus.")
+        self.assertEqual(c.min_years(career), 5)
+        self.assertEqual(c.classify(J("Data Scientist - Career", desc=career))[0], "EXCLUDED")
+        inter = career.replace("5-7 years", "2-4 years")
+        self.assertEqual(c.min_years(inter), 2)
+        self.assertEqual(c.classify(J("Data Scientist - Intermediate", desc=inter))[0], "REVIEW")   # 2-4 yrs -> kept for review
+        # a real preferred section is still ignored
+        self.assertEqual(c.min_years("Requirements: 1+ years of Python experience. Preferred qualifications: 4+ years of experience in ML."), 1)
+        self.assertEqual(c.min_years("Basic: 0-1 years of experience. Nice to have: 3+ years of experience with Spark."), 0)
+
     def test_apprenticeship_is_entry_level_not_internship(self):
         self.assertEqual(c.classify(J("Apprentice Welder", desc=""))[:2], ("CONFIRMED", "Entry-Level"))
         self.assertEqual(c.classify(J("Apprentice Controls Technician", desc=""))[:2], ("CONFIRMED", "Entry-Level"))
@@ -335,6 +349,7 @@ class TestPostIssue(TempState):
             self.assertIn(field, body)
         self.assertIn("+2 more SpaceX roles", body)                          # 10-per-company cap (12 new)
         self.assertIn("Needs your review", body)
+        self.assertNotIn("📍", body.split("## 4. Needs your review")[0])          # tags only in the review section
         idx = [body.index(h) for h in ("## 1. Atlanta area", "## 2. Elsewhere in Georgia",
                                        "## 3. Elsewhere in the United States", "## 4. Needs your review")]
         self.assertEqual(idx, sorted(idx))                                   # Atlanta, Georgia, US, then review
@@ -526,6 +541,17 @@ class TestQuietRunsAndHousekeeping(TempState):
         p = mock.patch.object(pi, "REPORTS", self.tmp / "reports"); p.start(); self.addCleanup(p.stop)
         e = mock.patch.dict(os.environ, {"GITHUB_RUN_ID": "9"}); e.start(); self.addCleanup(e.stop)
 
+    def test_atlanta_tag_and_order_in_review_section(self):
+        src = TestRunBehaviour.SRC[:1]
+        c.run(src, self.now, fetch=lambda s, seen: [])
+        r = c.run(src, self.now, fetch=lambda s, seen: [
+            J("Data Analyst", desc=TECH + " 2+ years of experience.", loc="Denver, CO", jid=1),
+            J("Business Analyst", desc=TECH + " 2+ years of experience.", loc="USA - Georgia - Alpharetta - 30005", jid=2)])
+        md = c.write_report(r)
+        review = md.split("## 4. Needs your review")[1]
+        self.assertIn("- 📍 Atlanta area - **Business Analyst**", review)
+        self.assertLess(review.index("Business Analyst"), review.index("Data Analyst"))   # Atlanta first
+
     def test_quiet_run_creates_no_issue_but_failures_do(self):
         src = TestRunBehaviour.SRC
         c.run(src, self.now, fetch=lambda s, seen: [])
@@ -664,6 +690,28 @@ class TestQuietRunsAndHousekeeping(TempState):
 
     def test_tests_do_not_write_to_github_summary(self):
         self.assertNotIn("GITHUB_STEP_SUMMARY", os.environ)
+
+    def test_discover_workday_exact_guess_first(self):
+        calls = []
+        def poster(url):
+            calls.append(url)
+            if url == "https://nvidia.wd5.myworkdayjobs.com/wday/cxs/nvidia/NVIDIAExternalCareerSite/jobs": return {"total": 2000}
+            raise ConnectionError()
+        rows = c.discover_workday("NVIDIA", ["nvidia.wd5/NVIDIAExternalCareerSite", "nvidia"], poster=poster, root_site=lambda h: None)
+        self.assertEqual((rows[0]["wd_host"], rows[0]["wd_site"]), ("nvidia.wd5.myworkdayjobs.com", "NVIDIAExternalCareerSite"))
+        self.assertEqual(len(calls), 1)                                           # no brute-force needed
+
+    def test_workday_probes_tracked_separately_from_board_probes(self):
+        prog = self.tmp / "state/discover_progress.json"
+        prog.parent.mkdir(parents=True, exist_ok=True)
+        prog.write_text(json.dumps({"NVIDIA": "2026-11-15", "Stripe": "2026-11-15"}))   # earlier board-only run
+        out = self.tmp / "d.csv"
+        probed = []
+        with mock.patch.object(c, "PROGRESS", prog), mock.patch.object(c, "discover", lambda names, **k: probed.append(("board", names[0])) or []), \
+             mock.patch.object(c, "discover_workday", lambda n, t, **k: probed.append(("wd", n)) or []), contextlib.redirect_stdout(io.StringIO()):
+            c.discover_all(["NVIDIA", "Stripe"], {"NVIDIA": ["nvidia"]}, out, workers=1)
+        self.assertEqual(probed, [("wd", "NVIDIA")])                              # only the new Workday probe ran
+        self.assertIn("NVIDIA|wd", json.loads(prog.read_text()))
 
     def test_discover_workday_finds_site(self):
         def poster(url):
