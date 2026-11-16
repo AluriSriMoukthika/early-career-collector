@@ -153,3 +153,5 @@ The Walt Disney Company,workday,disney,disney.wd5.myworkdayjobs.com,disneycareer
 Cadence Design Systems,workday,cadence,cadence.wd1.myworkdayjobs.com,External_Careers,1,UNTESTED,686,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
 TransUnion,workday,transunion,transunion.wd5.myworkdayjobs.com,TransUnion,1,UNTESTED,205,2026-11-16 (discover on GitHub),exact site guess confirmed by live probe
 Qualcomm,workday,qualcomm,qualcomm.wd12.myworkdayjobs.com,External,0,FAILED,0,2026-11-16 (discover on GitHub),REJECTED: 0 jobs - wrong site name
+SimplifyJobs New Grad list,simplify,New-Grad-Positions,,,1,WORKING,3184,2026-11-16,"Community list on GitHub (~1,100 companies incl. Google, Microsoft, Apple, Amazon). Only entries posted in the last 24h are used; duplicates of direct feeds are skipped."
+SimplifyJobs Internship list,simplify,Summer2027-Internships,,,1,WORKING,5211,2026-11-16,"Community internship list on GitHub (~1,300 companies). Repo name changes each season; GitHub redirects the old name."

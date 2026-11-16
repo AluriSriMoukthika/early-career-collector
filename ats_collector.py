@@ -401,7 +401,48 @@ def posting_age_hours(job, now):
 
 FOCUSED_SITES = set()      # filled by fetch_workday, reported in the run summary
 
-FETCHERS = {"greenhouse": fetch_greenhouse, "lever": fetch_lever, "ashby": fetch_ashby, "workday": fetch_workday}
+# ---- community job lists (SimplifyJobs on GitHub): public JSON, one file per list, ~1,000+ companies each.
+# Listings carry no description, so the list itself sets the level (New Grad / Internship) and the
+# 'sponsorship' / 'degrees' fields are turned into the same sentences the work-authorization rules read.
+SIMPLIFY_URL = "https://raw.githubusercontent.com/SimplifyJobs/{repo}/dev/.github/scripts/listings.json"
+AGGREGATORS = {"simplify"}
+SIMPLIFY_MAX_AGE_DAYS = 7          # older listings are ignored outright (never reported, never stored)
+
+def fetch_simplify(src, now_ts=None):
+    hint = "Internship" if "intern" in src["slug"].lower() else "New Graduate"
+    now_ts = now_ts if now_ts is not None else time.time()
+    for j in http_json(SIMPLIFY_URL.format(repo=src["slug"]), timeout=120):
+        if not j.get("active") or j.get("is_visible") is False:
+            continue
+        ts = j.get("date_posted") or 0
+        if now_ts - ts > SIMPLIFY_MAX_AGE_DAYS * 86400:
+            continue
+        sp, degrees = j.get("sponsorship") or "", j.get("degrees") or []
+        desc = []
+        if sp == "U.S. Citizenship is Required":
+            desc.append("U.S. citizenship is required for this role.")
+        elif sp == "Does Not Offer Sponsorship":
+            desc.append("This role does not offer visa sponsorship.")
+        if degrees and all(d == "PhD" for d in degrees):
+            desc.append("A PhD is required.")
+        posted = dt.datetime.fromtimestamp(ts, dt.timezone.utc) if ts else None
+        rel = ""
+        if posted and ts % 86400 == 0:       # date only (no time): judged like Workday's 'Posted Today / Yesterday'
+            days = (dt.datetime.fromtimestamp(now_ts, dt.timezone.utc).date() - posted.date()).days
+            rel = "Posted Today" if days <= 0 else "Posted Yesterday" if days == 1 else f"Posted {days} Days Ago"
+        yield dict(posted_rel=rel, id=j["id"], company=(j.get("company_name") or "").strip(), title=j.get("title") or "",
+                   url=j.get("url", ""), location="; ".join(j.get("locations") or []), country="",
+                   posted=(posted.date() if rel else posted.astimezone(NY).date()).isoformat() if posted else "",
+                   posted_ts=posted.isoformat() if posted else "",
+                   meta={"Simplify category": j.get("category") or ""}, desc=" ".join(desc),
+                   level_hint=hint, degrees=degrees, aggregator=True)
+
+FETCHERS = {"greenhouse": fetch_greenhouse, "lever": fetch_lever, "ashby": fetch_ashby, "workday": fetch_workday,
+            "simplify": fetch_simplify}
+FP_RETENTION_DAYS = 14             # same company+title already reported by another source -> not reported twice
+
+def fingerprint(company, title):
+    return "fp|" + core_name(company) + "|" + re.sub(r"[^a-z0-9]+", " ", (title or "").lower()).strip()
 
 # ============================================================== state helpers
 def load_json(p, default):
@@ -433,7 +474,7 @@ def run(sources, now=None, fetch=None):
     FOCUSED_SITES.clear()
     import concurrent.futures as cf
     prepared = []
-    for s in sources:
+    for s in sorted(sources, key=lambda s: s["ats"].lower() in AGGREGATORS):   # direct feeds first, lists last
         k = src_key(s)
         st = sstate.setdefault(k, {"company": s["company"], "baselined": False, "consecutive_failures": 0})
         prepared.append((s, k, st, {key.split("|", 1)[1] for key in seen if key.startswith(k + "|")}))
@@ -468,7 +509,8 @@ def run(sources, now=None, fetch=None):
         st.update(last_ok=today, last_ok_ts=now.isoformat(timespec="seconds"), consecutive_failures=0, last_job_count=len(jobs))
         st.pop("last_error", None)
         res["ok"] += 1
-        first_time = not st["baselined"]
+        aggregator = s["ats"].lower() in AGGREGATORS
+        first_time = not st["baselined"] and not aggregator     # lists are filtered by posting date instead
         deferred = 0
         for j in jobs:
             key = f"{k}|{j['id']}"
@@ -477,11 +519,17 @@ def run(sources, now=None, fetch=None):
             if j.get("meta", {}).pop("_detail_skipped", None):
                 deferred += 1
                 continue   # not marked seen -> retried next run
+            if aggregator:
+                age0 = posting_age_hours(j, now)
+                if age0 is None or age0 > window:
+                    continue          # list entries outside the window are ignored, not stored
             us = is_us(j.get("location"), j.get("country", ""))
             seen[key] = today
             if us is False:
                 continue
             status, typ, why = classify(j)
+            if j.get("level_hint") and status in ("REVIEW", "UNCLASSIFIED"):
+                status, typ, why = "CONFIRMED", j["level_hint"], f"listed on the SimplifyJobs {j['level_hint']} list"
             if status == "EXCLUDED":
                 res["excluded"][why.split(" (")[0]] = res["excluded"].get(why.split(" (")[0], 0) + 1
                 continue
@@ -503,6 +551,9 @@ def run(sources, now=None, fetch=None):
                 continue
             if a["auth_status"] == "AMBIGUOUS" and status == "CONFIRMED":
                 status, why = "REVIEW", f"{why}; work-authorization wording needs review"
+            if (j.get("aggregator") and status == "CONFIRMED" and a["auth_status"] == "NOT_STATED"
+                    and relevance.CLEARANCE_EMPLOYERS.search(j.get("company") or "")):
+                status, why = "REVIEW", f"{why}; defense/ITAR employer - list entry has no description, check citizenship/clearance"
             if a["auth_status"] == "NO_SPONSORSHIP":
                 res["no_sponsorship_kept"] = res.get("no_sponsorship_kept", 0) + 1
             if status == "CONFIRMED" and a["relevance"] == "BORDERLINE":
@@ -513,13 +564,28 @@ def run(sources, now=None, fetch=None):
                 status, typ, why = "REVIEW", "Level not stated", "relevant role, experience level not stated"
             age = posting_age_hours(j, now)
             yrs = min_years(j.get("desc", ""))
-            row = dict(company=s["company"], title=j["title"].strip(), type=typ or "-", status=status, reason=why,
+            company = j.get("company") or s["company"]
+            fp = fingerprint(company, j["title"])
+            prev_fp = seen.get(fp, "")
+            if prev_fp and prev_fp.split("|", 1)[-1] != k and status != "UNCLASSIFIED":
+                res["excluded"]["already reported by another source"] = res["excluded"].get("already reported by another source", 0) + 1
+                continue
+            auth_note = a["auth"]
+            education = a["education"]
+            if aggregator:
+                if a["auth_status"] == "NOT_STATED":
+                    auth_note = "Not stated in the list entry - check the posting"
+                if j.get("degrees") and education == "Not stated":
+                    education = ", ".join(j["degrees"])
+            row = dict(company=company, title=j["title"].strip(), type=typ or "-", status=status, reason=why,
                        location=(j.get("location") or "(not listed)") + ("" if us else " [US? unverified]"),
                        region=relevance.region(j.get("location")), category=a["family"],
                        employment=employment_type(j, typ), experience=("Not stated" if yrs is None else f"{yrs}+ yrs required" if yrs else "0 yrs / no minimum"),
-                       education=a["education"], work_auth=a["auth"], match=a["why"],
+                       education=education, work_auth=auth_note, match=a["why"] + (" (via SimplifyJobs list)" if aggregator else ""),
                        posted=(j.get("posted", "") or "(no date)"), age_hours="" if age is None else round(age, 1),
                        detected=today, url=j.get("url", ""))
+            if status != "UNCLASSIFIED" and not first_time:
+                seen[fp] = f"{today}|{k}"
             if status == "UNCLASSIFIED":
                 res["unclassified"].append(row)
             elif first_time:
@@ -540,7 +606,8 @@ def run(sources, now=None, fetch=None):
         res["warnings"].append(f"{name}: very large site - checked its technology/data/business/early-career job families only")
     res["warnings"] = sorted(set(res["warnings"]))
     cutoff = (now.date() - dt.timedelta(days=SEEN_RETENTION_DAYS)).isoformat()
-    seen = {k: v for k, v in seen.items() if v >= cutoff}
+    fp_cutoff = (now.date() - dt.timedelta(days=FP_RETENTION_DAYS)).isoformat()
+    seen = {k: v for k, v in seen.items() if v[:10] >= (fp_cutoff if k.startswith("fp|") else cutoff)}
     save_json(SEEN, seen)
     save_json(SRC_STATE, sstate)
     return res
@@ -923,7 +990,7 @@ def main(argv=None):
                             wd[r["company"]] = list(dict.fromkeys(wd.get(r["company"], []) + g))
         # Atlanta-area employers first, then companies with Workday guesses, then everyone else
         names = [r["Company_Name"] for r in master]
-        atl = [n for r, n in zip(master, names) if "Atlanta-metro" in r.get("Notes", "")]
+        atl = [n for r, n in zip(master, names) if re.search(r"Atlanta-metro|Georgia employer", r.get("Notes", ""))]
         wdn = [n for n in names if n in wd and n not in atl]
         todo = atl + wdn + [n for n in names if n not in atl and n not in wdn]
         discover_all(todo, wd, HERE / "discovered_sources.csv")

@@ -174,6 +174,16 @@ def work_auth(desc):
     found = [t for t, rx in AUTH_RULES if rx.search(desc or "")]
     return "; ".join(found) if found else "Not stated (unverified)"
 
+# Employers whose roles very often need U.S. citizenship, a clearance or ITAR "U.S. person" status.
+# List entries (no description) from these go to Needs Review instead of being reported as confirmed.
+CLEARANCE_EMPLOYERS = re.compile(
+    r"booz allen|\bsaic\b|science applications|leidos|peraton|lockheed|northrop|raytheon|\brtx\b|general dynamics|"
+    r"l3harris|\bbae\b|huntington ingalls|applied physics lab|\bmitre\b|sierra nevada|anduril|\bcaci\b|mantech|"
+    r"parsons|\bkbr\b|amentum|systems planning and analysis|spacex|blue origin|united launch|aerospace corporation|"
+    r"lincoln lab|sandia|lawrence livermore|los alamos|oak ridge|idaho national|savannah river|naval|army|air force|"
+    r"department of (defense|energy)|\bnsa\b|national security agency|\bcia\b|\bfbi\b|booz|textron|honeywell aerospace|"
+    r"collins aerospace|pratt|boeing|shield ai|palantir|govini|second front|vannevar|\bhii\b|draper|\bgtri\b|georgia tech research", re.I)
+
 def title_unrelated(title):
     """True when the title alone shows the role is outside the profile (e.g. store, driver, warehouse),
     so fetching its full description would be wasted."""
@@ -198,7 +208,7 @@ def assess(job):
     if family:
         if unrelated_title and len(core) < 2:
             out.update(relevance="UNRELATED", why=f"title is {unrelated_title.group(0).strip()} work")
-        elif not desc.strip() or core or len(skills) >= 2:
+        elif not desc.strip() or job.get("aggregator") or core or len(skills) >= 2:   # list entries have no description
             out.update(relevance="MATCH", why=f"{family} role; skills in posting: {skill_txt}")
         else:
             out.update(relevance="BORDERLINE", why=f"{family} title but description lists no technical skills")

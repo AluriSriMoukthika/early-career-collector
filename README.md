@@ -44,7 +44,7 @@ Each entry shows the title, company, location, employment type, category, career
 ## Schedule and GitHub usage
 - **Triggers:** cron `7 0,1,12,13,15,16,18,19,21,22 * * *`, i.e. both the winter and summer UTC conversions of each slot. `scripts/schedule_guard.py` runs each slot at most once.
 - **Backup:** the second trigger of each pair acts as a backup about 1 hour (summer) or 2 hours (winter) later. GitHub can delay or drop scheduled runs, so times are approximate.
-- **Estimated usage:** about 5 real checks × 4–6 min plus 5 skipped triggers × about 1 billed minute each. That's roughly **25–35 min/day, or 750–1,100 min/month**, within the 2,000 free minutes/month for private repos on GitHub Free. Check it under **Settings → Billing**.
+- **Estimated usage:** about 5 real checks × 4–6 min plus 5 skipped triggers × about 1 billed minute each. That's roughly **25–35 min/day, or 750–1,100 min/month**, within the 2,000 free minutes/month for private repos on GitHub Free. In a **public** repo, standard GitHub-hosted runner minutes are free, so this limit no longer applies.
 - **Requests:** about 150 public API requests per check, most of them Workday pages.
 - **Repo growth:** up to 5 small history commits a day.
 
@@ -84,8 +84,16 @@ Each entry shows the title, company, location, employment type, category, career
 
 GitHub pauses scheduled workflows in repos with no activity for 60 days. The daily history commit counts as activity, so this won't happen as long as runs keep succeeding.
 
-## Adding companies (towards all 300)
-- **Discover:** go to Actions → Run workflow → mode **discover**. It also tries to find Workday career sites for the companies in `atlanta_candidates.csv`. Atlanta-area employers are probed first. Results are written as each company finishes, and a run stops starting new companies after 40 minutes (`DISCOVER_MAX_MINUTES`). Run **discover** again to continue: `state/discover_progress.json` remembers which companies are done. Board probes and Workday probes are tracked separately, so new Workday guesses get probed even for companies probed before. It tries likely board names for every company in the master CSV that isn't configured yet, and writes `discovered_sources.csv`. Only rows with `name_match = yes` are safe to add. A Greenhouse board must carry the company's own name, not just share its first word; Lever and Ashby postings must mention the company's full name. Workday rows always need a manual check. Copy them into `ats_sources.csv` with `enabled=1` and `live_status=UNTESTED`, then run **verify**.
+## Community job lists (SimplifyJobs)
+- Two `simplify` rows in `ats_sources.csv` read the public SimplifyJobs lists on GitHub: `New-Grad-Positions` and the current internship season (`Summer2027-Internships`). Between them they cover about 2,000 companies, including ones with no public feed (Google, Microsoft, Apple, Amazon, ...).
+- Only entries posted within the report window are used. Older entries are ignored and never stored. An entry with a date but no time counts as Today or Yesterday, the same way as Workday.
+- The list sets the level (New Grad or Internship). All other filters still apply: co-op, senior titles, profile relevance, PhD-only, and the list's "U.S. Citizenship is Required" flag (excluded). Entries flagged "Does Not Offer Sponsorship" are kept and labeled. List entries have no description, so work authorization is shown as "check the posting". Entries from defense, ITAR or clearance-heavy employers go to Needs review.
+- **Duplicates:** a role already reported from a company's own feed in the last 14 days (same company and title) is not reported again from a list. Company feeds are read first.
+- When the internship season changes (e.g. `Summer2028-Internships`), update the slug in `ats_sources.csv`. GitHub redirects the old name for a while.
+
+## Adding companies (master list: 166 Georgia + 479 rest of US)
+- `US_Early_Careers_300_Companies.csv` now has 645 companies. Each company appears once. Notes say "Region group: Georgia" or "Region group: Rest of US". Rows added on 2026-11-16 note whether the company already appears on the SimplifyJobs lists.
+- **Discover:** go to Actions → Run workflow → mode **discover**. It also tries to find Workday career sites for the companies in `atlanta_candidates.csv`. Atlanta-area and other Georgia employers are probed first. Results are written as each company finishes, and a run stops starting new companies after 40 minutes (`DISCOVER_MAX_MINUTES`). Run **discover** again to continue: `state/discover_progress.json` remembers which companies are done. Board probes and Workday probes are tracked separately, so new Workday guesses get probed even for companies probed before. It tries likely board names for every company in the master CSV that isn't configured yet, and writes `discovered_sources.csv`. Only rows with `name_match = yes` are safe to add. A Greenhouse board must carry the company's own name, not just share its first word; Lever and Ashby postings must mention the company's full name. Workday rows always need a manual check. Copy them into `ats_sources.csv` with `enabled=1` and `live_status=UNTESTED`, then run **verify**.
 - **Workday companies:** find the company's careers site URL in the form `https://<tenant>.wd<N>.myworkdayjobs.com/<site>`, then add a row `Company,workday,<tenant>,<tenant>.wd<N>.myworkdayjobs.com,<site>,1,UNTESTED,,,`.
 - **No public feed** (e.g. Google, Amazon, JPMorgan): use Visualping. See `visualping_pilot.csv`.
 
