@@ -795,6 +795,9 @@ class TestScheduleGuard(unittest.TestCase):
         self.assertEqual(re.findall(r'cron:\s*"([^"]+)"', wf), ["7 0,1,12,13,15,16,18,19,21,22 * * *"])
         self.assertIn("issues: write", wf); self.assertIn("contents: write", wf)
         self.assertIn("mark-done ${{ steps.guard.outputs.slot }}", wf)
+        # runs never overlap, and a queued run loads the latest history before deciding
+        self.assertRegex(wf, r"concurrency:\s*\n\s*group: early-career-collector\s*\n\s*cancel-in-progress: false")
+        self.assertRegex(wf, r"actions/checkout@v4\s*\n\s*with:\s*\n(\s*#.*\n)*\s*ref: main")
 
 class TestSaveHistory(unittest.TestCase):
     def sh(self, *a, cwd):
