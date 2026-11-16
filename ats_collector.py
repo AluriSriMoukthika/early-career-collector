@@ -268,7 +268,7 @@ def workday_posted(s, today):
         return ("~" if "+" in s else "") + (today - dt.timedelta(days=int(m.group(1)))).isoformat()
     return s
 
-def fetch_workday(src, seen_ids=frozenset(), today=None):
+def fetch_workday(src, seen_ids=frozenset(), today=None, baseline=False):
     """Lists ALL postings (paged), tags those inside early-career facets, and fetches detail
     (description, country) for unseen postings without a facet tag, up to WORKDAY_DETAIL_CAP."""
     today = today or dt.datetime.now(NY).date()
@@ -307,7 +307,8 @@ def fetch_workday(src, seen_ids=frozenset(), today=None):
         if path in tagged:
             typ, why = tagged[path]
             meta["facet"] = "co-op" if typ == "COOP" else why.split("=", 1)[1]
-        elif path not in seen_ids and relevance.title_unrelated(p.get("title", "")):
+        elif path not in seen_ids and (baseline or relevance.title_unrelated(p.get("title", ""))):
+            # baseline pass: nothing is reported, so full descriptions are not needed (finishes in one check)
             pass                                   # e.g. store/driver/warehouse roles: rejected on title, no detail call
         elif path not in seen_ids and details < WORKDAY_DETAIL_CAP:
             try:
@@ -390,7 +391,7 @@ def run(sources, now=None, fetch=None):
             if fetch:
                 jobs = list(fetch(s, seen_ids))
             elif s["ats"].lower() == "workday":
-                jobs = list(fetch_workday(s, seen_ids, now.date()))
+                jobs = list(fetch_workday(s, seen_ids, now.date(), baseline=not st["baselined"]))
             else:
                 jobs = list(FETCHERS[s["ats"].lower()](s))
         except Exception as e:
