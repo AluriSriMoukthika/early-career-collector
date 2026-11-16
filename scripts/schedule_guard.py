@@ -9,6 +9,11 @@ In any season one trigger of each pair lands ~7 minutes after the slot; the othe
 backup about 1 hour later (summer) or about 2 hours later (winter, just before the next slot). The guard maps the trigger time to the most recent slot
 and runs only if that slot has not run yet (state/last_run.json). Times are approximate.
 Manual runs (workflow_dispatch) always run.
+
+Because GitHub's own schedule can fail to fire (it never fired for this repo in Nov 2026), an outside
+scheduler (e.g. cron-job.org) can start the workflow through the API with inputs
+{"mode": "run", "source": "external"}. Those calls are treated exactly like scheduled triggers,
+so each check slot still runs at most once.
 """
 import datetime as dt, json, os, sys
 from pathlib import Path
@@ -48,12 +53,23 @@ def mark_done(slot, now_utc=None):
     LAST.parent.mkdir(exist_ok=True)
     LAST.write_text(json.dumps({"slot": slot, "date": slot[:10], "finished_utc": now_utc.isoformat(timespec="seconds")}))
 
-if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] == "mark-done":
-        mark_done(sys.argv[2] if len(sys.argv) > 2 else current_slot(dt.datetime.now(dt.timezone.utc))); sys.exit(0)
-    ok, slot, why = should_run(dt.datetime.now(dt.timezone.utc), read_last(), os.environ.get("GITHUB_EVENT_NAME", ""))
+def main(argv=None, env=None, now_utc=None):
+    argv = sys.argv if argv is None else argv
+    env = os.environ if env is None else env
+    now_utc = now_utc or dt.datetime.now(dt.timezone.utc)
+    if len(argv) > 1 and argv[1] == "mark-done":
+        mark_done(argv[2] if len(argv) > 2 else current_slot(now_utc), now_utc)
+        return 0
+    event = env.get("GITHUB_EVENT_NAME", "")
+    if event == "workflow_dispatch" and env.get("GUARD_TRIGGER") == "external":
+        event = "schedule"                  # outside scheduler: same once-per-slot rule as GitHub's schedule
+    ok, slot, why = should_run(now_utc, read_last(), event)
     print(f"run={'true' if ok else 'false'} slot={slot} ({why})")
-    out = os.environ.get("GITHUB_OUTPUT")
+    out = env.get("GITHUB_OUTPUT")
     if out:
         with open(out, "a") as f:
             f.write(f"run={'true' if ok else 'false'}\nslot={slot}\n")
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main())
