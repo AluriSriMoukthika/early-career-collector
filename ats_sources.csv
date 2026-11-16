@@ -155,3 +155,60 @@ TransUnion,workday,transunion,transunion.wd5.myworkdayjobs.com,TransUnion,1,UNTE
 Qualcomm,workday,qualcomm,qualcomm.wd12.myworkdayjobs.com,External,0,FAILED,0,2026-11-16 (discover on GitHub),REJECTED: 0 jobs - wrong site name
 SimplifyJobs New Grad list,simplify,New-Grad-Positions,,,1,WORKING,3184,2026-11-16,"Community list on GitHub (~1,100 companies incl. Google, Microsoft, Apple, Amazon). Only entries posted in the last 24h are used; duplicates of direct feeds are skipped."
 SimplifyJobs Internship list,simplify,Summer2027-Internships,,,1,WORKING,5211,2026-11-16,"Community internship list on GitHub (~1,300 companies). Repo name changes each season; GitHub redirects the old name."
+Gas South,greenhouse,gassouth,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+The Weather Company,greenhouse,theweathercompany,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Relay Payments,greenhouse,relaypayments,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Agilysys,greenhouse,agilysys,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+CallRail,greenhouse,callrail,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Goodr,greenhouse,goodr,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Elastic,greenhouse,elastic,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+GitLab,greenhouse,gitlab,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+New Relic,greenhouse,newrelic,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Fastly,greenhouse,fastly,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Epic Games,greenhouse,epicgames,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Nextdoor,greenhouse,nextdoor,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Indeed,greenhouse,indeed,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Squarespace,greenhouse,squarespace,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Toast,greenhouse,toast,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+GoDaddy,greenhouse,godaddy,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Klaviyo,greenhouse,klaviyo,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Pure Storage,greenhouse,purestorage,,,1,UNTESTED,,,"board renamed Everpure (Pure Storage rebrand, Feb 2026)"
+Riot Games,greenhouse,riotgames,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Peloton,greenhouse,peloton,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Affirm,greenhouse,affirm,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Chime,greenhouse,chime,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+SoFi,greenhouse,sofi,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Gusto,greenhouse,gusto,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Carta,greenhouse,carta,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Rubrik,greenhouse,rubrik,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Benchling,ashby,benchling,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Verkada,greenhouse,verkada,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Vanta,ashby,vanta,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Cohere,ashby,cohere,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Perplexity,ashby,perplexity,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Character.AI,ashby,character,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Qualtrics,greenhouse,qualtrics,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Fivetran,greenhouse,fivetran,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Smartsheet,greenhouse,smartsheet,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Coursera,greenhouse,coursera,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Sigma Computing,greenhouse,sigmacomputing,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Miro,ashby,miro,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+ClickUp,ashby,clickup,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Khan Academy,greenhouse,khanacademy,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Instructure,ashby,instructure,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Thoughtworks,greenhouse,thoughtworks,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Optiver,greenhouse,optiver,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Jump Trading,greenhouse,jumptrading,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Tower Research Capital,greenhouse,towerresearchcapital,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Akuna Capital,greenhouse,akunacapital,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Vercel,greenhouse,vercel,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Flatiron Health,greenhouse,flatironhealth,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Komodo Health,greenhouse,komodohealth,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Oscar Health,greenhouse,oscar,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Veeva Systems,lever,veeva,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Lucid Motors,greenhouse,lucidmotors,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Nuro,greenhouse,nuro,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Zoox,lever,zoox,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Relativity Space,greenhouse,relativity,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+Rocket Lab,greenhouse,rocketlab,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
+The New York Times,greenhouse,thenewyorktimes,,,1,UNTESTED,,,found by discover 2026-11-16; board name matched company
