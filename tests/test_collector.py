@@ -626,6 +626,27 @@ class TestQuietRunsAndHousekeeping(TempState):
         self.assertFalse(any(j["meta"].get("_detail_skipped") for j in jobs))     # skipped ones are not deferred either
         self.assertEqual(rel.assess(jobs[0])["relevance"], "UNRELATED")
 
+    def test_workday_multi_location_expanded_from_detail(self):
+        posts = [{"title": "AI Risk Specialist", "externalPath": "/job/Charlotte-NC/AI-Risk_R1", "locationsText": "4 Locations",
+                  "postedOn": "Posted Yesterday"}]
+        def fake(url, payload=None):
+            if payload is None:
+                return {"jobPostingInfo": {"jobDescription": "Machine learning, generative AI, Python.",
+                                           "location": "Charlotte, NC", "country": {"descriptor": "United States of America"},
+                                           "additionalLocations": ["Atlanta, GA", "Richmond, VA", "Raleigh, NC"]}}
+            return {"total": 1, "facets": [], "jobPostings": posts}
+        with mock.patch.object(c, "http_json", side_effect=fake), mock.patch.object(c.time, "sleep"):
+            j = list(c.fetch_workday({"wd_host": "truist.wd1.myworkdayjobs.com", "slug": "truist", "wd_site": "Careers"},
+                                     today=dt.date(2026, 11, 16)))[0]
+        self.assertEqual(j["location"], "Charlotte, NC; Atlanta, GA; Richmond, VA; Raleigh, NC")
+        self.assertEqual(rel.region(j["location"]), "Atlanta metro")              # now sorted into the Atlanta section
+        self.assertTrue(c.is_us(j["location"], j["country"]))
+
+    def test_unstated_level_is_labelled_honestly(self):
+        c.run(TestRunBehaviour.SRC[:1], self.now, fetch=lambda s, seen: [])
+        r = c.run(TestRunBehaviour.SRC[:1], self.now, fetch=lambda s, seen: [J("Site Reliability Engineer", jid=1)])
+        self.assertEqual((r["review"][0]["type"], r["review"][0]["reason"]), ("Level not stated", "relevant role, experience level not stated; feed gives no posting date"))
+
     def test_workday_baseline_pass_needs_no_detail_calls(self):
         posts = [{"title": f"Data Analyst {i}", "externalPath": f"/job/{i}", "locationsText": "Atlanta, GA", "postedOn": "Posted Today"}
                  for i in range(300)]
