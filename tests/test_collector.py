@@ -39,7 +39,7 @@ class TestRealGreenhouseSample(unittest.TestCase):
         8933791002: ("CONFIRMED", "Internship"),
         8350832: ("CONFIRMED", "Internship"),
         8044534: ("EXCLUDED", ""),
-        7752395: ("REVIEW", "Entry-Level"),               # Dropbox IC2 + '2+ years' -> uncertain
+        7752395: ("CONFIRMED", "Entry-Level"),            # Dropbox IC2 + '2+ years' -> within 0-2 yrs (choice A)
         7172839: ("EXCLUDED", ""),                        # IC3, 5+ yrs
         8052050: ("CONFIRMED", "New Graduate"),           # HRT 'Full-Time: New Grad'
         7964062: ("CONFIRMED", "Internship"),
@@ -49,7 +49,7 @@ class TestRealGreenhouseSample(unittest.TestCase):
         8192369: ("EXCLUDED", ""),                        # IC3 / 3-5 yrs
         8175471: ("CONFIRMED", "Internship"),
         8129321: ("EXCLUDED", ""),
-        8257324: ("REVIEW", "Entry-Level"),               # 'Analyst' with 2-4 yrs
+        8257324: ("CONFIRMED", "Entry-Level"),            # 'Analyst' with 2-4 yrs -> within 0-2 yrs (choice A); relevance filter decides later
         6572669: ("UNCLASSIFIED", ""),                    # no level info at all
     }
     def test_expected(self):
@@ -94,7 +94,8 @@ class TestClassification(unittest.TestCase):
         self.assertEqual(c.classify(J("Software Engineer", {"Job Level": "IC1"}, desc=""))[:2], ("CONFIRMED", "Entry-Level"))
         self.assertEqual(c.classify(J("Software Engineer", {"employment type": "Intern"}, desc=""))[:2], ("CONFIRMED", "Internship"))
         self.assertEqual(c.classify(J("Machine Learning Engineer", desc="1+ years of industry experience with Python"))[0], "CONFIRMED")
-        self.assertEqual(c.classify(J("Business Analyst", desc="2+ years of experience in analytics"))[0], "REVIEW")
+        self.assertEqual(c.classify(J("Business Analyst", desc="2+ years of experience in analytics"))[0], "CONFIRMED")   # choice A
+        self.assertEqual(c.classify(J("Business Analyst", desc="3+ years of experience in analytics"))[0], "EXCLUDED")
         self.assertEqual(c.classify(J("Software Engineer", desc="Open to recent graduates with a BS in CS."))[0], "REVIEW")
         self.assertEqual(c.classify(J("Software Engineer", desc="Build great things."))[0], "UNCLASSIFIED")
 
@@ -140,7 +141,7 @@ class TestClassification(unittest.TestCase):
         self.assertEqual(c.classify(J("Data Scientist - Career", desc=career))[0], "EXCLUDED")
         inter = career.replace("5-7 years", "2-4 years")
         self.assertEqual(c.min_years(inter), 2)
-        self.assertEqual(c.classify(J("Data Scientist - Intermediate", desc=inter))[0], "REVIEW")   # 2-4 yrs -> kept for review
+        self.assertEqual(c.classify(J("Data Scientist - Intermediate", desc=inter))[0], "CONFIRMED")   # 2-4 yrs -> confirmed (choice A)
         # a real preferred section is still ignored
         self.assertEqual(c.min_years("Requirements: 1+ years of Python experience. Preferred qualifications: 4+ years of experience in ML."), 1)
         self.assertEqual(c.min_years("Basic: 0-1 years of experience. Nice to have: 3+ years of experience with Spark."), 0)
@@ -245,11 +246,12 @@ class TestRunBehaviour(TempState):
     def test_review_and_unclassified_routing(self):
         c.run(self.SRC[:1], self.now, fetch=lambda s, seen: [])
         r = c.run(self.SRC[:1], self.now, fetch=lambda s, seen: [
-            J("Business Analyst", desc="2+ years of experience with SQL and Python", jid=1),   # level uncertain, relevant -> review
+            J("Business Analyst", desc="2+ years of experience with SQL and Python", jid=1),   # 2 yrs, relevant -> confirmed (choice A)
             J("Software Engineer", jid=2),                                                    # relevant, no level stated -> review
             J("Software Engineer", desc="Build great things for customers.", loc="", jid=3),  # no level, weak relevance -> unclassified
             J("TIG Welder", desc="Entry level. TIG and MIG welding; read blueprints.", jid=4)])  # unrelated -> excluded
-        self.assertEqual(sorted(n["reason"].split(";")[0] for n in r["review"]), ["relevant role, experience level not stated", "requires 2 yrs experience"])
+        self.assertEqual([n["reason"].split(";")[0] for n in r["review"]], ["relevant role, experience level not stated"])
+        self.assertEqual([n["title"] for n in r["new"]], ["Business Analyst"])
         self.assertEqual(len(r["unclassified"]), 1)
         self.assertEqual(r["excluded"].get("not relevant to profile"), 1)
         c.write_report(r)
@@ -334,7 +336,7 @@ class TestPostIssue(TempState):
             if fail and s["slug"] == "b": raise ConnectionError("down")
             atl = [J("Data Science Intern", jid=500, loc="Alpharetta, GA"), J("Software Engineer I", jid=501, loc="Savannah, GA")]
             return [J(f"Junior Data Analyst {i:02d}", jid=i) for i in range(12)] + atl + \
-                   [J("Business Analyst", desc="2+ years of experience with SQL and Python", jid=99)]
+                   [J("Business Analyst", jid=99)]                                     # no level stated -> review
         r = c.run(src, self.now, fetch=f)
         c.write_report(r)
         return r
@@ -495,10 +497,11 @@ class TestRelevanceRealisticDescriptions(TempState):
         # ambiguous -> needs review (never excluded)
         for d in ("Applicants must be a U.S. person as defined by ITAR.", "Export control regulations apply to this role.",
                   "ITAR compliance required.", "Permanent work authorization required.", "Security screening required.",
-                  "Offer contingent on a background check.", "Must be a U.S. citizen or permanent resident.",
+                  "Must be a U.S. citizen or permanent resident.",
                   "Secret clearance is a plus."):
             self.assertEqual(A(d)[0], "AMBIGUOUS", d)
             self.assertIn("Needs review — work-authorization wording", A(d)[1])
+        self.assertEqual(A("Offer contingent on a background check.")[0], "NOT_STATED")           # choice B
         # nothing stated -> retained
         self.assertEqual(A("Python and SQL. Bachelor's degree."), ("NOT_STATED", "Not stated (unverified)"))
 
@@ -523,9 +526,9 @@ class TestRelevanceRealisticDescriptions(TempState):
         self.assertIn("Included — No Sponsorship: 1 posting(s)", md)
 
     def test_background_check_setting(self):
-        self.assertEqual(rel.auth_assessment("Background check required.")[0], "AMBIGUOUS")
-        with mock.patch.object(rel, "REVIEW_ON_BACKGROUND_CHECK", False):
-            self.assertEqual(rel.auth_assessment("Background check required.")[0], "NOT_STATED")
+        self.assertEqual(rel.auth_assessment("Background check required.")[0], "NOT_STATED")      # choice B (default)
+        with mock.patch.object(rel, "REVIEW_ON_BACKGROUND_CHECK", True):
+            self.assertEqual(rel.auth_assessment("Background check required.")[0], "AMBIGUOUS")
 
     def test_regions(self):
         self.assertEqual(rel.region("Alpharetta, GA"), "Atlanta metro")
@@ -545,12 +548,25 @@ class TestQuietRunsAndHousekeeping(TempState):
         src = TestRunBehaviour.SRC[:1]
         c.run(src, self.now, fetch=lambda s, seen: [])
         r = c.run(src, self.now, fetch=lambda s, seen: [
-            J("Data Analyst", desc=TECH + " 2+ years of experience.", loc="Denver, CO", jid=1),
-            J("Business Analyst", desc=TECH + " 2+ years of experience.", loc="USA - Georgia - Alpharetta - 30005", jid=2)])
+            J("Data Analyst", loc="Denver, CO", jid=1),                                   # no level stated -> review
+            J("Business Analyst", loc="USA - Georgia - Alpharetta - 30005", jid=2)])
         md = c.write_report(r)
         review = md.split("## 4. Needs your review")[1]
         self.assertIn("- 📍 Atlanta area - **Business Analyst**", review)
         self.assertLess(review.index("Business Analyst"), review.index("Data Analyst"))   # Atlanta first
+
+    def test_same_role_in_many_cities_is_one_entry(self):
+        src = TestRunBehaviour.SRC[:1]
+        c.run(src, self.now, fetch=lambda s, seen: [])
+        cities = ["Redmond, WA", "Starbase, TX", "Bastrop, TX", "Palo Alto, CA", "Hawthorne, CA", "Sunnyvale, CA"]
+        r = c.run(src, self.now, fetch=lambda s, seen: [dict(J("Software Engineer (Platform Team)", desc=TECH + " 2+ years of experience.",
+                                                               loc=city, jid=i), url=f"https://x/{i}") for i, city in enumerate(cities)])
+        self.assertEqual(len(r["new"]), 6)                                           # still 6 postings in history/CSV
+        md = c.write_report(r)
+        self.assertEqual(md.count("**Software Engineer (Platform Team)**"), 1)          # one entry in the email
+        self.assertIn("Apply (6 locations):", md)
+        for i, city in enumerate(cities):
+            self.assertIn(f"    - {city}: https://x/{i}", md)
 
     def test_quiet_run_creates_no_issue_but_failures_do(self):
         src = TestRunBehaviour.SRC
@@ -722,6 +738,38 @@ class TestQuietRunsAndHousekeeping(TempState):
         self.assertEqual([n["company"] for n in r["new"]], [f"Co{i}" for i in range(6)])
         self.assertEqual(len(r["errors"]), 1); self.assertIn("Bad", r["errors"][0])
 
+    def test_internship_tagged_postings_still_get_their_description(self):
+        facets = [{"facetParameter": "workerSubType", "values": [{"id": "in", "descriptor": "Intern (Trainee)", "count": 1}]}]
+        post = {"title": "Digital Engineer Intern (Summer 2027)", "externalPath": "/job/Wichita-KS/Digital-Engineering-Intern_R1",
+                "locationsText": "Wichita, KS", "postedOn": "Posted Today", "timeType": "Part time"}
+        details = []
+        def fake(url, payload=None):
+            if payload is None:
+                details.append(url)
+                return {"jobPostingInfo": {"jobDescription": "Create 3D CAD models in CATIA and SolidWorks; support aircraft structural drawings."}}
+            if payload["appliedFacets"]:
+                return {"total": 1, "jobPostings": [post]}
+            return {"total": 1, "facets": facets, "jobPostings": [post]}
+        with mock.patch.object(c, "http_json", side_effect=fake), mock.patch.object(c.time, "sleep"):
+            j = list(c.fetch_workday({"wd_host": "snc.wd1.myworkdayjobs.com", "slug": "snc", "wd_site": "S"}, today=dt.date(2026, 11, 16)))[0]
+        self.assertEqual(len(details), 1)
+        self.assertIn("CATIA", j["desc"])
+        self.assertEqual(c.classify(j)[1], "Internship")                              # still an internship ...
+        self.assertNotEqual(rel.assess(j)["relevance"], "MATCH")                     # ... but no longer a confirmed match (CAD work)
+
+    def test_workday_posting_without_job_page_is_skipped(self):
+        # Target and RTX (2026-11-16): some list entries have no externalPath -> verify failed with KeyError
+        facets = [{"facetParameter": "workerSubType", "values": [{"id": "in", "descriptor": "Intern", "count": 2}]}]
+        posts = [{"title": "Data Analyst I", "externalPath": "/job/1", "locationsText": "Atlanta, GA", "postedOn": "Posted Today"},
+                 {"title": "Promoted content", "locationsText": "", "postedOn": ""}]
+        def fake(url, payload=None):
+            if payload is None:
+                return {"jobPostingInfo": {"jobDescription": "SQL"}}
+            return {"total": 2, "facets": facets, "jobPostings": posts}
+        with mock.patch.object(c, "http_json", side_effect=fake), mock.patch.object(c.time, "sleep"):
+            jobs = list(c.fetch_workday({"wd_host": "target.wd5.myworkdayjobs.com", "slug": "target", "wd_site": "t"}, today=dt.date(2026, 11, 16)))
+        self.assertEqual([j["id"] for j in jobs], ["/job/1"])
+
     def test_workday_baseline_pass_needs_no_detail_calls(self):
         posts = [{"title": f"Data Analyst {i}", "externalPath": f"/job/{i}", "locationsText": "Atlanta, GA", "postedOn": "Posted Today"}
                  for i in range(300)]
@@ -828,7 +876,7 @@ class TestFetchers(unittest.TestCase):
         self.assertEqual(c.classify(jobs[0])[:2], ("CONFIRMED", "Internship"))
         self.assertEqual(c.classify(jobs[1])[0], "EXCLUDED")
         self.assertEqual(sum(1 for j in jobs if j["desc"]), 5)
-        self.assertEqual(sum(1 for j in jobs if j["meta"].get("_detail_skipped")), 42 - 2 - 5)
+        self.assertEqual(sum(1 for j in jobs if j["meta"].get("_detail_skipped")), 42 - 1 - 5)   # co-op needs none; the intern now gets a description
         self.assertEqual(jobs[2]["posted"], "2026-11-07")
 
     def test_discover_name_check(self):
