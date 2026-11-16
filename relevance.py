@@ -71,7 +71,7 @@ BS_MS_OK = re.compile(r"bachelor|master'?s|\bm\.?s\.?\b|\bb\.?s\.?\b|\bbs/ms\b|\
 # EXCLUDE: explicit U.S. citizenship / nationals-only / security-clearance requirements
 #          (U.S. clearances are only granted to U.S. citizens, so clearance eligibility implies citizenship).
 # NO_SPONSORSHIP / WORK_AUTH: kept and flagged.  AMBIGUOUS: kept but moved to Needs Review.
-REVIEW_ON_BACKGROUND_CHECK = True          # set False if "background check" moves too many roles to review
+REVIEW_ON_BACKGROUND_CHECK = False         # choice B (2026-11-16): background-check wording alone does not send a role to review
 CLEARANCE = (r"(secret|top[- ]secret|ts/sci|\bts\b|sci|dod|doe|public trust|q|l|security)[- ]?(level )?clearance|clearance (level )?\(?(secret|top secret|ts/sci)")
 CITIZEN_EXCLUDE = [re.compile(p, re.I) for p in (
     r"must be (a )?(united states|u\.?s\.?) citizen(?!s? or)(?! or)",

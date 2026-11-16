@@ -159,8 +159,8 @@ def classify(job):
     if yrs is not None:
         if yrs <= 1:
             return "CONFIRMED", "Entry-Level", f"requires {yrs} yrs experience" + coop_note
-        if yrs == 2:
-            return "REVIEW", "Entry-Level", "requires 2 yrs experience" + coop_note
+        if yrs == 2:                                # within the requested 0-2 year range (choice A, 2026-11-16)
+            return "CONFIRMED", "Entry-Level", "requires 2 yrs experience" + coop_note
         return "EXCLUDED", "", f"requires {yrs}+ yrs"
     if meta_ambig:
         return "REVIEW", "Entry-Level", meta_ambig + coop_note
@@ -296,7 +296,8 @@ def fetch_workday(src, seen_ids=frozenset(), today=None, baseline=False):
         for off in range(0, 2000, 20):
             js = http_json(f"{base}/jobs", {"appliedFacets": {param: [vid]}, "limit": 20, "offset": off, "searchText": ""})
             for p in js.get("jobPostings", []):
-                tagged.setdefault(p["externalPath"], (typ, f"facet {param}={desc}"))
+                if p.get("externalPath"):
+                    tagged.setdefault(p["externalPath"], (typ, f"facet {param}={desc}"))
             if off + 20 >= js.get("total", 0):
                 break
             time.sleep(0.3)
@@ -332,6 +333,7 @@ def fetch_workday(src, seen_ids=frozenset(), today=None, baseline=False):
             postings += http_json(f"{base}/jobs", {"appliedFacets": {}, "limit": 20, "offset": off, "searchText": ""}).get("jobPostings", [])
             time.sleep(0.2)
     details = 0
+    postings = [p for p in postings if p.get("externalPath")]   # a few sites list entries without a job page; nothing to apply to
     for p in postings:
         path = p.get("externalPath", "")
         meta = {"time type": p.get("timeType")}
@@ -341,6 +343,8 @@ def fetch_workday(src, seen_ids=frozenset(), today=None, baseline=False):
         if path in tagged:
             typ, why = tagged[path]
             meta["facet"] = "co-op" if typ == "COOP" else why.split("=", 1)[1]
+        if path in tagged and typ == "COOP":
+            pass                                   # excluded anyway
         elif path not in seen_ids and (baseline or relevance.title_unrelated(p.get("title", ""))):
             # baseline pass: nothing is reported, so full descriptions are not needed (finishes in one check)
             pass                                   # e.g. store/driver/warehouse roles: rejected on title, no detail call
@@ -551,6 +555,22 @@ def status_line(res):
                 f"{res['ok']} sources that succeeded.")
     return f"OK - all {res['total']} sources checked."
 
+def merge_locations(rows):
+    """Same company + title + type + status posted in several cities -> one entry listing every location and link."""
+    groups = {}
+    for n in rows:
+        groups.setdefault((n["company"], n["title"], n["type"], n["status"]), []).append(n)
+    out = []
+    for grp in groups.values():
+        first = dict(grp[0])
+        if len(grp) > 1:
+            first["location"] = "; ".join(dict.fromkeys(x["location"] for x in grp))
+            first["links"] = [(x["location"], x["url"]) for x in grp]
+            regions = [x.get("region") for x in grp]
+            first["region"] = next((r for r in ("Atlanta metro", "Georgia") if r in regions), first.get("region"))
+        out.append(first)
+    return out
+
 def cap_per_company(rows, cap, used=None):
     """Keep at most `cap` rows per company (counting rows already shown via `used`)."""
     used = used if used is not None else {}
@@ -581,7 +601,12 @@ def _entries(rows, review=False):
                 f"  - Why it matches: {n.get('match', '')}"]
         if review:
             out.append(f"  - Why it needs review: {n['reason']}")
-        out += [f"  - Apply: {n['url']}", ""]
+        if n.get("links"):
+            out.append(f"  - Apply ({len(n['links'])} locations):")
+            out += [f"    - {loc}: {url}" for loc, url in n["links"]]
+            out.append("")
+        else:
+            out += [f"  - Apply: {n['url']}", ""]
     return out
 
 def write_report(res):
@@ -602,13 +627,13 @@ def write_report(res):
             hidden[k] = hidden.get(k, 0) + v
     sections = [("Atlanta metro", "1. Atlanta area"), ("Georgia", "2. Elsewhere in Georgia"), ("United States", "3. Elsewhere in the United States")]
     for reg, heading in sections:
-        rows = [n for n in res["new"] if n.get("region", "United States") == reg]
+        rows = [n for n in merge_locations(res["new"]) if n.get("region", "United States") == reg]
         if rows:
             shown, h = cap_per_company(rows, EMAIL_CAP_PER_COMPANY); add_hidden(h)
             L += ["", f"## {heading} - {len(rows)} new relevant", ""] + _entries(shown)
     if res["review"]:
         order = {r: i for i, (r, _) in enumerate(sections)}
-        rv = sorted(res["review"], key=lambda n: order.get(n.get("region", "United States"), 9))
+        rv = sorted(merge_locations(res["review"]), key=lambda n: order.get(n.get("region", "United States"), 9))
         shown, h = cap_per_company(rv, EMAIL_CAP_PER_COMPANY); add_hidden(h)
         shown.sort(key=lambda n: order.get(n.get("region", "United States"), 9))
         L += ["", f"## 4. Needs your review - {len(res['review'])} (relevant, but level or fit uncertain)", ""] + _entries(shown, review=True)

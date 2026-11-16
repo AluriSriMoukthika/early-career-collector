@@ -20,9 +20,9 @@ Checks the public job feeds of the companies in `ats_sources.csv` (Greenhouse, L
      | "U.S. person", export control, ITAR, "permanent work authorization", "security screening", "background check", "citizen **or** permanent resident", clearance only "preferred" | Kept, moved to **Needs review** |
      | Nothing stated | Kept: "Not stated (unverified)" |
 
-     "Background check" is very common. To stop it moving roles to review, set `REVIEW_ON_BACKGROUND_CHECK = False` in `relevance.py`.
+     "Background check" wording alone no longer moves a role to review (`REVIEW_ON_BACKGROUND_CHECK = False` in `relevance.py`; set True to restore).
 3. **Result:**
-   - **Confirmed** = early-career and relevant.
+   - **Confirmed** = early-career (including roles requiring up to 2 years) and relevant.
    - **Needs review** = relevant, but the level or fit is uncertain, e.g. "2 yrs" or no level stated.
    - Everything else isn't reported. Postings with no level information and weak relevance stay in the run's unclassified CSV.
 
