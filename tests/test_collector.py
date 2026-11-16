@@ -1,4 +1,4 @@
-import contextlib, csv, datetime as dt, io, json, re, os, subprocess, sys, tempfile, unittest
+import contextlib, csv, datetime as dt, io, json, re, time, os, subprocess, sys, tempfile, unittest
 from pathlib import Path
 from unittest import mock
 from zoneinfo import ZoneInfo
@@ -672,6 +672,55 @@ class TestQuietRunsAndHousekeeping(TempState):
         c.run(TestRunBehaviour.SRC[:1], self.now, fetch=lambda s, seen: [])
         r = c.run(TestRunBehaviour.SRC[:1], self.now, fetch=lambda s, seen: [J("Site Reliability Engineer", jid=1)])
         self.assertEqual((r["review"][0]["type"], r["review"][0]["reason"]), ("Level not stated", "relevant role, experience level not stated; feed gives no posting date"))
+
+    def test_very_large_workday_site_reads_relevant_families_only(self):
+        facets = [{"facetParameter": "jobFamilyGroup", "values": [
+                      {"id": "it", "descriptor": "Information Technology", "count": 30},
+                      {"id": "rx", "descriptor": "Pharmacy", "count": 9000},
+                      {"id": "st", "descriptor": "Store Operations", "count": 9000}]},
+                  {"facetParameter": "workerSubType", "values": [{"id": "in", "descriptor": "Intern", "count": 2}]}]
+        it_posts = [{"title": f"Data Engineer {i}", "externalPath": f"/job/it{i}", "locationsText": "Atlanta, GA", "postedOn": "Posted Today"} for i in range(30)]
+        intern = [{"title": "Pharmacy Intern", "externalPath": "/job/Atlanta-GA/Pharmacy-Intern_R9", "locationsText": "Atlanta, GA", "postedOn": "Posted Today"},
+                  {"title": "Data Engineer 0", "externalPath": "/job/it0", "locationsText": "Atlanta, GA", "postedOn": "Posted Today"}]
+        calls = []
+        def fake(url, payload=None):
+            if payload is None:
+                return {"jobPostingInfo": {"title": "Pharmacy Intern", "jobDescription": "", "location": "Atlanta, GA"}}
+            calls.append(payload["appliedFacets"])
+            f = payload["appliedFacets"]
+            if f == {"jobFamilyGroup": ["it"]}:
+                o = payload["offset"]; return {"total": 30, "jobPostings": it_posts[o:o + 20]}
+            if f == {"workerSubType": ["in"]}:
+                return {"total": 2, "jobPostings": intern}
+            return {"total": 18032, "facets": facets, "jobPostings": []}
+        c.FOCUSED_SITES.clear()
+        with mock.patch.object(c, "http_json", side_effect=fake), mock.patch.object(c.time, "sleep"):
+            jobs = list(c.fetch_workday({"company": "CVS Health", "wd_host": "cvshealth.wd1.myworkdayjobs.com", "slug": "cvshealth",
+                                         "wd_site": "CVS_Health_Careers"}, today=dt.date(2026, 11, 16)))
+        self.assertEqual(len(jobs), 31)                                          # 30 IT postings + the intern outside IT
+        self.assertNotIn({}, calls[1:])                                         # never paged through all 18,032
+        self.assertIn("CVS Health", c.FOCUSED_SITES)
+        intern_job = next(j for j in jobs if j["id"].endswith("R9"))
+        self.assertEqual(intern_job["title"], "Pharmacy Intern")                 # real title from the job details
+
+    def test_sources_fetched_in_parallel_results_in_order(self):
+        import threading
+        active, peak, lock = [0], [0], threading.Lock()
+        def fetch(s, seen):
+            with lock:
+                active[0] += 1; peak[0] = max(peak[0], active[0])
+            time.sleep(0.05)
+            with lock:
+                active[0] -= 1
+            if s["slug"] == "bad":
+                raise ConnectionError("down")
+            return [J(f"Data Science Intern {s['slug']}", jid=1)]
+        src = [dict(company=f"Co{i}", ats="greenhouse", slug=f"s{i}") for i in range(6)] + [dict(company="Bad", ats="greenhouse", slug="bad")]
+        c.run(src, self.now, fetch=lambda s, seen: [])
+        r = c.run(src, self.now, fetch=fetch)
+        self.assertGreater(peak[0], 1)                                          # really parallel
+        self.assertEqual([n["company"] for n in r["new"]], [f"Co{i}" for i in range(6)])
+        self.assertEqual(len(r["errors"]), 1); self.assertIn("Bad", r["errors"][0])
 
     def test_workday_baseline_pass_needs_no_detail_calls(self):
         posts = [{"title": f"Data Analyst {i}", "externalPath": f"/job/{i}", "locationsText": "Atlanta, GA", "postedOn": "Posted Today"}
