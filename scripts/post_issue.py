@@ -56,7 +56,8 @@ def build_report_issue(date, repo, owner, run_url, server="https://github.com"):
         tag = " [RUN FAILED]"
     elif sm["failed"]:
         tag = f" [{sm['failed']} sources failed]"
-    title = f"{TITLE_PREFIX} {date} {stamp[-4:-2]}:{stamp[-2:]} - {sm['new']} new, {sm['review']} to review{tag}"
+    title = f"{TITLE_PREFIX} {date} {stamp[-4:-2]}:{stamp[-2:]} - {sm['new']} new, {sm['review']} to review" + \
+            (f", {sm['other_software']} other software" if sm.get("other_software") else "") + tag
     links = [f"Full list (CSV): {blob}/{stamp}.csv"]
     if (REPORTS / f"{stamp}-unclassified.csv").exists():
         links.append(f"Unclassified postings: {blob}/{stamp}-unclassified.csv")
@@ -69,7 +70,7 @@ def build_report_issue(date, repo, owner, run_url, server="https://github.com"):
 def should_post(sm):
     """Post only when there is something to act on: new/needs-review roles, failed sources,
     or a feed that suddenly returned 0 jobs. Quiet runs create no issue."""
-    return bool(sm["new"] or sm["review"] or sm["failed"] or sm.get("zero_job_warnings"))
+    return bool(sm["new"] or sm["review"] or sm.get("other_software") or sm["failed"] or sm.get("zero_job_warnings"))
 
 def build_sample_issue(owner, run_url):
     title = f"{TITLE_PREFIX} - TEST NOTIFICATION (sample data, not real jobs)"
