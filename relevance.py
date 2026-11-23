@@ -23,7 +23,8 @@ FAMILIES = [  # (family, title regex) - first match wins
     ("Software Engineering", r"software|\bsde\b|\bswe\b|developer|programmer|full[- ]?stack|back[- ]?end|front[- ]?end|\bweb\b|mobile (engineer|developer)|\bios\b|android|"
                              r"platform engineer|cloud engineer|devops|site reliability|\bsre\b|qa engineer|test (automation )?engineer|forward deployed"),
     ("Analytics", r"\banalytics?\b|data analyst|business analyst|business intelligence|\bbi (analyst|developer|engineer)|product analyst|operations analyst|"
-                  r"insights? analyst|reporting analyst|technology analyst|strategy (and|&) analytics|risk analyst|financial analyst.*data"),
+                  r"insights? analyst|reporting analyst|technology analyst|strategy (and|&) analytics|risk analyst|financial analyst.*data|"
+                  r"\bdata\b(?! ?cent(er|re)| entry)"),
     ("IT / Technical Analyst", r"systems analyst|technical analyst|\bit analyst|information technology|\bit (engineer|associate|specialist)|technology (associate|analyst|program)|"
                                r"solutions engineer|security (analyst|engineer)|cyber|network engineer|systems engineer|"
                                r"\b(it|computer|network|desktop) (technician|support)|help ?desk"),
@@ -38,7 +39,12 @@ UNRELATED_TITLE = re.compile(
     r"recruit|talent acquisition|human resources|\bhr\b|payroll|accountant|accounting|bookkeep|\blegal\b|paralegal|attorney|counsel|"
     r"\bnurse|nursing|physician|pharmac|therapist|dental|medical assistant|clinical|"
     r"marketing (coordinator|specialist|associate|intern)|copywriter|social media|graphic design|\bevent|chef|\bcook\b|"
-    r"janitor|custodian|security officer|guard\b|pilot\b|flight attendant|aircraft maintenance|crew\b", re.I)
+    r"janitor|custodian|security officer|guard\b|pilot\b|flight attendant|aircraft maintenance|crew\b|"
+    # added 2026-11-23 after reviewing a week of reports: fab/lab/finance/design roles outside the profile
+    r"process integration|equipment engineer|\btpm\b|total productive|yield enhancement|tapeout|bio ?process|upstream|downstream|"
+    r"\bmsat\b|actuar|marketing campaign|deal pricing|manufacturing facilitator|change consultant|\bux\b|\bui\b|designer|treasury|"
+    r"patient safety|forensic|materials (&|and) processes|go-to-market|\bgtm\b|commercial excellence|shareholder|client portfolio|"
+    r"product office|\blms\b|data entry|abuse analyst|trust (&|and) safety|apprenticeship|calibration", re.I)
 IT_TECHNICIAN = re.compile(r"\b(it|computer|network|data ?center|software|systems?) technician", re.I)
 
 SKILLS = {
@@ -182,7 +188,14 @@ CLEARANCE_EMPLOYERS = re.compile(
     r"parsons|\bkbr\b|amentum|systems planning and analysis|spacex|blue origin|united launch|aerospace corporation|"
     r"lincoln lab|sandia|lawrence livermore|los alamos|oak ridge|idaho national|savannah river|naval|army|air force|"
     r"department of (defense|energy)|\bnsa\b|national security agency|\bcia\b|\bfbi\b|booz|textron|honeywell aerospace|"
-    r"collins aerospace|pratt|boeing|shield ai|palantir|govini|second front|vannevar|\bhii\b|draper|\bgtri\b|georgia tech research", re.I)
+    r"collins aerospace|pratt|boeing|shield ai|palantir|govini|second front|vannevar|\bhii\b|draper|\bgtri\b|georgia tech research|"
+    r"torch technologies|mda space|noblis|radiance technologies|riverside research|innovative defense|analytical mechanics|"
+    r"hermeus|true anomaly|saronic|aerovironment|\bsaab\b|sierra space|united launch", re.I)
+
+CLEARANCE_TITLE = re.compile(r"ts\s*/\s*sci|\bclearance\b|\bsecret\b|polygraph|\bfull[- ]scope poly|\bci poly", re.I)
+# Contractors whose roles are essentially all for cleared U.S. citizens: excluded outright.
+CLEARED_ONLY_EMPLOYERS = re.compile(r"wyetech|red alpha|altamira|captivation|integration innovation|nightwing|arcfield|avalore|"
+                                    r"mapjects|praxis engineering|clearedjobs", re.I)
 
 def title_unrelated(title):
     """True when the title alone shows the role is outside the profile (e.g. store, driver, warehouse),

@@ -84,6 +84,13 @@ Each entry shows the title, company, location, employment type, category, career
 
 GitHub pauses scheduled workflows in repos with no activity for 60 days. The daily history commit counts as activity, so this won't happen as long as runs keep succeeding.
 
+## Fixes after reviewing the first week of reports (2026-11-23)
+- **Location:** a location part naming another country or a foreign city is never US. This fixes "Pune (Mississippi Building)" and "Vancouver, 510 W. Georgia St".
+- **Seniority:** titles with *Leader*, *Advisor* or *Officer* are excluded (e.g. Citi and State Street "Officer" roles, "Chapter Leader").
+- **Clearance:** titles with *TS/SCI*, *clearance*, *secret* or *polygraph* are excluded, as are cleared-only contractors (Wyetech, Red Alpha, ...). More defense names go to Needs review.
+- **Fit:** fab-process, lab-science, actuarial, UX design, go-to-market and similar titles are treated as outside the profile. A title that names none of the target role families goes to Needs review instead of confirmed.
+- **Repeats:** a company re-posting the same title within 14 days is not sent again (several cities in the same check are still merged into one entry).
+
 ## Community job lists (SimplifyJobs)
 - Two `simplify` rows in `ats_sources.csv` read the public SimplifyJobs lists on GitHub: `New-Grad-Positions` and the current internship season (`Summer2027-Internships`). Between them they cover about 2,000 companies, including ones with no public feed (Google, Microsoft, Apple, Amazon, ...).
 - Only entries posted within the report window are used. Older entries are ignored and never stored. An entry with a date but no time counts as Today or Yesterday, the same way as Workday.

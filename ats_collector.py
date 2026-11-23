@@ -48,6 +48,7 @@ COOP = re.compile(r"\bco-?op\b|\bcooperative education\b|\bco-operative\b", re.I
 SENIOR_TITLE = re.compile(
     r"\bsenior\b|\bsr\.?\b|\bstaff\b|\bprincipal\b|\blead\b|(?<!associate product )(?<!rotational product )\bmanager\b|\bdirector\b|\bhead of\b|\bvp\b|"
     r"\bvice president\b|\bchief\b|\barchitect\b|\bexpert\b|\bdistinguished\b|\bfellow\b(?!ship)|"
+    r"\bleader\b|\badvisor\b|(?<!security )\bofficer\b(?! (development|leadership|training|candidate) program)|"
     r"\b(ii|iii|iv|v|2|3|4|5)\s*$|\b(engineer|developer|analyst|scientist|specialist|consultant)\s+(ii|iii|iv|ll|2|3|4)\b", re.I)
 # Strong early signals in titles
 TITLE_RULES = [
@@ -181,6 +182,14 @@ US_WORDS = re.compile(r"united states|\bU\.?S\.?A?\b|\bAMER\b|alabama|alaska|ari
                       r"pittsburgh|philadelphia|charlotte|miami|richmond|columbus|minneapolis|detroit|phoenix|menlo park|"
                       r"san diego|redmond|raleigh|nashville|salt lake|cambridge, ma|brooklyn|jersey city|plano|irving", re.I)
 CANADA_CA = re.compile(r",\s*(ON|BC|QC|AB|MB|NS|NB|SK|NL|PE)\s*,\s*CA\b")
+# A location part naming another country or a foreign city is never US, even if it also contains a word like
+# 'Mississippi Building' (Pune office) or 'W. Georgia St' (Vancouver street).
+NON_US = re.compile(r"\bindia\b|bengaluru|bangalore|\bpune\b|hyderabad|chennai|noida|gurgaon|gurugram|\bcanada\b|toronto|ottawa|"
+                    r"vancouver|montreal|calgary|quebec|mississauga|waterloo, on|(?<!new )\bmexico\b(?!, (ny|mo|me|in))|guadalajara|"
+                    r"united kingdom|\bengland\b|london(?!, (ky|oh|on))|\bireland\b|\bdublin\b(?!, (ca|oh|ga|va))|\bcork\b|germany|"
+                    r"\bfrance\b|\bparis\b(?!, (tx|tn|ky))|china|shanghai|beijing|shenzhen|japan|tokyo|singapore|philippines|"
+                    r"manila|poland|krakow|warsaw(?!, in)|brazil|costa rica|israel|tel aviv|netherlands|amsterdam|australia|sydney|"
+                    r"romania|spain|portugal|czech|hungary|vietnam|malaysia|korea|seoul|taiwan|hsinchu", re.I)
 
 def is_us(location, country=""):
     """True / False / None(unknown)."""
@@ -190,6 +199,8 @@ def is_us(location, country=""):
     if not loc:
         return None
     for part in re.split(r";|\||/| or ", loc):
+        if NON_US.search(part):
+            continue
         p = CANADA_CA.sub("", part)
         if US_WORDS.search(p) or re.search(r",\s*(%s)\b" % "|".join(US_STATES), p):
             return True
@@ -439,7 +450,7 @@ def fetch_simplify(src, now_ts=None):
 
 FETCHERS = {"greenhouse": fetch_greenhouse, "lever": fetch_lever, "ashby": fetch_ashby, "workday": fetch_workday,
             "simplify": fetch_simplify}
-FP_RETENTION_DAYS = 14             # same company+title already reported by another source -> not reported twice
+FP_RETENTION_DAYS = 14             # same company+title already reported in an earlier alert -> not reported twice
 
 def fingerprint(company, title):
     return "fp|" + core_name(company) + "|" + re.sub(r"[^a-z0-9]+", " ", (title or "").lower()).strip()
@@ -539,6 +550,7 @@ def run(sources, now=None, fetch=None):
                 res["excluded"]["military transition program"] = res["excluded"].get("military transition program", 0) + 1
                 continue
             # --- relevance to the candidate profile (title + full description)
+            company_name = j.get("company") or s["company"]
             a = relevance.assess(j)
             if a["relevance"] == "UNRELATED":
                 res["excluded"]["not relevant to profile"] = res["excluded"].get("not relevant to profile", 0) + 1
@@ -546,6 +558,8 @@ def run(sources, now=None, fetch=None):
             if a["phd_only"]:
                 res["excluded"]["PhD required"] = res["excluded"].get("PhD required", 0) + 1
                 continue
+            if relevance.CLEARANCE_TITLE.search(j.get("title", "")) or relevance.CLEARED_ONLY_EMPLOYERS.search(company_name):
+                a["auth_status"] = "EXCLUDE"             # 'TS/SCI' in the title, or an employer that only hires cleared staff
             if a["auth_status"] == "EXCLUDE":            # explicit U.S. citizenship / security clearance requirement
                 res["excluded"]["Excluded — Citizenship/Clearance"] = res["excluded"].get("Excluded — Citizenship/Clearance", 0) + 1
                 continue
@@ -556,6 +570,8 @@ def run(sources, now=None, fetch=None):
                 status, why = "REVIEW", f"{why}; defense/ITAR employer - list entry has no description, check citizenship/clearance"
             if a["auth_status"] == "NO_SPONSORSHIP":
                 res["no_sponsorship_kept"] = res.get("no_sponsorship_kept", 0) + 1
+            if status == "CONFIRMED" and a["relevance"] == "MATCH" and a["family"] == "Other technical":
+                status, why = "REVIEW", f"{why}; title does not name a data/AI/software role"
             if status == "CONFIRMED" and a["relevance"] == "BORDERLINE":
                 status, why = "REVIEW", f"{why}; relevance uncertain"
             elif status == "REVIEW" and a["relevance"] == "BORDERLINE":
@@ -567,8 +583,8 @@ def run(sources, now=None, fetch=None):
             company = j.get("company") or s["company"]
             fp = fingerprint(company, j["title"])
             prev_fp = seen.get(fp, "")
-            if prev_fp and prev_fp.split("|", 1)[-1] != k and status != "UNCLASSIFIED":
-                res["excluded"]["already reported by another source"] = res["excluded"].get("already reported by another source", 0) + 1
+            if prev_fp and status != "UNCLASSIFIED" and (prev_fp.split("|")[1:2] != [k] or prev_fp.split("|")[2:3] != [res["stamp"]]):
+                res["excluded"]["already reported in an earlier alert"] = res["excluded"].get("already reported in an earlier alert", 0) + 1
                 continue
             auth_note = a["auth"]
             education = a["education"]
@@ -585,7 +601,7 @@ def run(sources, now=None, fetch=None):
                        posted=(j.get("posted", "") or "(no date)"), age_hours="" if age is None else round(age, 1),
                        detected=today, url=j.get("url", ""))
             if status != "UNCLASSIFIED" and not first_time:
-                seen[fp] = f"{today}|{k}"
+                seen.setdefault(fp, f"{today}|{k}|{res['stamp']}")   # first report wins; re-posts are not re-sent
             if status == "UNCLASSIFIED":
                 res["unclassified"].append(row)
             elif first_time:
