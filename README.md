@@ -91,6 +91,13 @@ GitHub pauses scheduled workflows in repos with no activity for 60 days. The dai
 - **Fit:** fab-process, lab-science, actuarial, UX design, go-to-market and similar titles are treated as outside the profile. A title that names none of the target role families goes to Needs review instead of confirmed.
 - **Repeats:** a company re-posting the same title within 14 days is not sent again (several cities in the same check are still merged into one entry).
 
+## Software roles: AI/ML ones up top, the rest in section 5 (2026-11-23)
+- A software engineering / SDE role counts as **AI/ML** when its title names AI/ML (AI, ML, LLM, deep learning, NLP, computer vision, inference, ...) or its description lists at least 2 distinct AI/ML skills (machine learning, deep learning, PyTorch, TensorFlow, LLMs, generative or agentic AI, NLP, computer vision, MLOps, ...). SimplifyJobs entries have no description, so their title decides.
+- AI/ML software roles appear in sections 1-4 like every other relevant role.
+- Other early-career software roles are **not dropped**: they appear in **section 5, "Other software roles"**, one compact line each, Atlanta first. Their CSV status is `OTHER_SOFTWARE`. The issue title and email subject add "N other software".
+- To treat all software roles alike again, set `SWE_REQUIRE_AI = False` in `relevance.py`.
+- SMTS, SVP, AVP and EVP titles are excluded as senior.
+
 ## Community job lists (SimplifyJobs)
 - Two `simplify` rows in `ats_sources.csv` read the public SimplifyJobs lists on GitHub: `New-Grad-Positions` and the current internship season (`Summer2027-Internships`). Between them they cover about 2,000 companies, including ones with no public feed (Google, Microsoft, Apple, Amazon, ...).
 - Only entries posted within the report window are used. Older entries are ignored and never stored. An entry with a date but no time counts as Today or Yesterday, the same way as Workday.

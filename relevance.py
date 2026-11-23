@@ -10,7 +10,7 @@ assess(job) -> dict with
   why         one-line explanation of the decision
 Rule-based and deterministic (no external services). Tune the lists below.
 """
-import re
+import os, re
 
 FAMILIES = [  # (family, title regex) - first match wins
     ("Computer Vision", r"computer vision|\bcv engineer|perception|imaging (engineer|scientist)|vision (engineer|scientist|research)"),
@@ -205,6 +205,16 @@ def title_unrelated(title):
         return False
     return bool(UNRELATED_TITLE.search(title))
 
+# Software engineering roles are kept only when the work is AI/ML (user choice, 2026-11-23).
+# Kept when the title names AI/ML, or the description lists at least SWE_AI_MIN_SKILLS distinct AI/ML skills.
+# SWE_REQUIRE_AI=0 turns this off and keeps every software role again.
+SWE_REQUIRE_AI = os.environ.get("SWE_REQUIRE_AI", "1") == "1"
+SWE_AI_MIN_SKILLS = 2
+AI_SKILLS = {"machine learning", "deep learning", "PyTorch", "TensorFlow", "scikit-learn", "OpenCV", "computer vision", "NLP",
+             "LLMs", "generative AI", "agentic AI", "LangChain/LangGraph", "MLOps"}
+AI_TITLE = re.compile(r"\bai\b|a\.i\.|\bml\b|machine learning|deep learning|\bllms?\b|gen ?ai|generative|agentic|\bnlp\b|"
+                      r"computer vision|perception|neural|inference|model (training|serving)|intelligen", re.I)
+
 def assess(job):
     title = (job.get("title") or "").strip()
     desc = job.get("desc") or ""
@@ -221,6 +231,9 @@ def assess(job):
     if family:
         if unrelated_title and len(core) < 2:
             out.update(relevance="UNRELATED", why=f"title is {unrelated_title.group(0).strip()} work")
+        elif (SWE_REQUIRE_AI and family == "Software Engineering" and not AI_TITLE.search(title)
+              and len([k for k in skills if k in AI_SKILLS]) < SWE_AI_MIN_SKILLS):
+            out.update(relevance="MATCH", swe_no_ai=True, why="software role without AI/ML focus")   # -> section 5
         elif not desc.strip() or job.get("aggregator") or core or len(skills) >= 2:   # list entries have no description
             out.update(relevance="MATCH", why=f"{family} role; skills in posting: {skill_txt}")
         else:

@@ -48,7 +48,7 @@ COOP = re.compile(r"\bco-?op\b|\bcooperative education\b|\bco-operative\b", re.I
 SENIOR_TITLE = re.compile(
     r"\bsenior\b|\bsr\.?\b|\bstaff\b|\bprincipal\b|\blead\b|(?<!associate product )(?<!rotational product )\bmanager\b|\bdirector\b|\bhead of\b|\bvp\b|"
     r"\bvice president\b|\bchief\b|\barchitect\b|\bexpert\b|\bdistinguished\b|\bfellow\b(?!ship)|"
-    r"\bleader\b|\badvisor\b|(?<!security )\bofficer\b(?! (development|leadership|training|candidate) program)|"
+    r"\bleader\b|\badvisor\b|\bsmts\b|\b(svp|avp|evp)\b|(?<!security )\bofficer\b(?! (development|leadership|training|candidate) program)|"
     r"\b(ii|iii|iv|v|2|3|4|5)\s*$|\b(engineer|developer|analyst|scientist|specialist|consultant)\s+(ii|iii|iv|ll|2|3|4)\b", re.I)
 # Strong early signals in titles
 TITLE_RULES = [
@@ -480,7 +480,7 @@ def run(sources, now=None, fetch=None):
     today = now.date().isoformat()
     seen = load_json(SEEN, {})
     sstate = load_json(SRC_STATE, {})
-    res = dict(date=today, stamp=now.strftime("%Y-%m-%d_%H%M"), new=[], baseline=[], review=[], unclassified=[], older=[], errors=[], warnings=[],
+    res = dict(date=today, stamp=now.strftime("%Y-%m-%d_%H%M"), new=[], baseline=[], review=[], other_swe=[], unclassified=[], older=[], errors=[], warnings=[],
                ok=0, total=len(sources), excluded={}, window_hours=MAX_AGE_HOURS)
     FOCUSED_SITES.clear()
     import concurrent.futures as cf
@@ -612,7 +612,10 @@ def run(sources, now=None, fetch=None):
             else:
                 if age is None:
                     row["reason"] += "; feed gives no posting date"
-                res["new" if status == "CONFIRMED" else "review"].append(row)
+                if a.get("swe_no_ai"):                    # software role without AI/ML focus -> section 5 of the report
+                    res["other_swe"].append(row)
+                else:
+                    res["new" if status == "CONFIRMED" else "review"].append(row)
         if deferred:
             res["warnings"].append(f"{s['company']}: {deferred} postings deferred to the next run (Workday detail cap)"
                                    + ("; source stays in baseline mode until all are processed" if first_time else ""))
@@ -698,10 +701,11 @@ def write_report(res):
     st = res.get("stamp", d)          # one set of files per run (several runs per day)
     win = res.get("window_hours", MAX_AGE_HOURS)
     L = [f"# Early-career report - {d}", "", f"**Run status: {status_line(res)}**", "",
-         f"Relevant postings published in the last {win:.0f} hours: New confirmed: {len(res['new'])} | Needs review: {len(res['review'])}", "",
+         f"Relevant postings published in the last {win:.0f} hours: New confirmed: {len(res['new'])} | Needs review: {len(res['review'])} | "
+         f"Other software roles: {len(res.get('other_swe', []))}", "",
          f"Sources OK: {res['ok']}/{res['total']} | Newly detected but older than {win:.0f}h (CSV only): {len(res.get('older', []))} | "
          f"Existing openings recorded as baseline (not emailed): {len(res['baseline'])} | Unclassified (CSV only): {len(res['unclassified'])}", ""]
-    if not res["new"] and not res["review"]:
+    if not res["new"] and not res["review"] and not res.get("other_swe"):
         L.append(f"No new relevant early-career opportunities published in the last {win:.0f} hours in the sources that were checked."
                  if res["ok"] else "")
     hidden = {}
@@ -720,6 +724,18 @@ def write_report(res):
         shown, h = cap_per_company(rv, EMAIL_CAP_PER_COMPANY); add_hidden(h)
         shown.sort(key=lambda n: order.get(n.get("region", "United States"), 9))
         L += ["", f"## 4. Needs your review - {len(res['review'])} (relevant, but level or fit uncertain)", ""] + _entries(shown, review=True)
+    if res.get("other_swe"):
+        order = {r: i for i, (r, _) in enumerate(sections)}
+        ow = sorted(merge_locations(res["other_swe"]), key=lambda n: order.get(n.get("region", "United States"), 9))
+        shown, h = cap_per_company(ow, EMAIL_CAP_PER_COMPANY); add_hidden(h)
+        shown.sort(key=lambda n: (order.get(n.get("region", "United States"), 9), n["company"]))
+        L += ["", f"## 5. Other software roles - {len(res['other_swe'])} (early-career software, no AI/ML focus)", ""]
+        for n in shown:          # one compact line each: easy to skip on busy days
+            tag = {"Atlanta metro": "📍 Atlanta area - ", "Georgia": "📍 Georgia - "}.get(n.get("region"), "")
+            lvl = n["type"] + ("" if n["status"] == "CONFIRMED" else " (level uncertain)")
+            links = n.get("links") or [(n["location"], n["url"])]
+            L.append(f"- {tag}**{n['title']}** - {n['company']} | {n['location']} | {lvl} | Posted {n['posted']} | Apply: {links[0][1]}"
+                     + (f" (+{len(links) - 1} more locations in the CSV)" if len(links) > 1 else ""))
     if hidden:
         L += ["", f"Showing up to {EMAIL_CAP_PER_COMPANY} roles per company in each section. The full list is in reports/{st}.csv:"] + \
              [f"- +{v} more {k} roles in today's CSV" for k, v in sorted(hidden.items(), key=lambda x: -x[1])]
@@ -739,7 +755,8 @@ def write_report(res):
     fields = ["company", "title", "region", "location", "employment", "category", "type", "status", "experience", "education",
               "work_auth", "match", "reason", "posted", "age_hours", "detected", "url"]
     older = [dict(r, status="OLDER_THAN_WINDOW") for r in res.get("older", [])]
-    for name, rows in (("", res["new"] + res["review"] + older), ("-baseline", res["baseline"]), ("-unclassified", res["unclassified"])):
+    other = [dict(r, status="OTHER_SOFTWARE") for r in res.get("other_swe", [])]
+    for name, rows in (("", res["new"] + res["review"] + other + older), ("-baseline", res["baseline"]), ("-unclassified", res["unclassified"])):
         if rows or name == "":
             with open(REPORTS / f"{st}{name}.csv", "w", newline="", encoding="utf-8") as f:
                 w = csv.DictWriter(f, fieldnames=fields, extrasaction="ignore"); w.writeheader(); w.writerows(rows)
@@ -758,7 +775,7 @@ def write_report(res):
     # machine-readable summary used by scripts/post_issue.py
     (REPORTS / f"{st}-summary.json").write_text(json.dumps(dict(
         date=d, status=status_line(res), ok=res["ok"], total=res["total"], failed=len(res["errors"]),
-        new=len(res["new"]), review=len(res["review"]), older=len(res.get("older", [])),
+        new=len(res["new"]), review=len(res["review"]), other_software=len(res.get("other_swe", [])), older=len(res.get("older", [])),
         baseline=len(res["baseline"]), unclassified=len(res["unclassified"]), window_hours=win,
         zero_job_warnings=sum(1 for w in res["warnings"] if "returned 0 jobs" in w), stamp=st), indent=1))
     (REPORTS / "latest.json").write_text(json.dumps({"stamp": st, "date": d, "run_id": os.environ.get("GITHUB_RUN_ID", "")}))
@@ -777,7 +794,8 @@ def maybe_email(subject, body):
 
 def email_subject(res):
     tag = "" if not res["errors"] else (" [RUN FAILED]" if res["ok"] == 0 else f" [{len(res['errors'])} sources failed]")
-    return f"[Early careers] {len(res['new'])} new, {len(res['review'])} to review - {res['date']}{tag}"
+    other = f", {len(res['other_swe'])} other software" if res.get("other_swe") else ""
+    return f"[Early careers] {len(res['new'])} new, {len(res['review'])} to review{other} - {res['date']}{tag}"
 
 # ============================================================== verify & discover
 def verify(sources, all_rows=None, fetch=None):
