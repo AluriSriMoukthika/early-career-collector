@@ -156,6 +156,8 @@ class TempState(unittest.TestCase):
         # never write test reports into the real GitHub run summary
         e = mock.patch.dict(os.environ); e.start(); self.addCleanup(e.stop)
         os.environ.pop("GITHUB_STEP_SUMMARY", None)
+        # most behaviour tests predate the 'software roles only with AI/ML' rule (2026-11-23); it is tested on its own below
+        p = mock.patch.object(rel, "SWE_REQUIRE_AI", False); p.start(); self.addCleanup(p.stop)
         for name, val in (("SEEN", self.tmp / "state/seen.json"), ("SRC_STATE", self.tmp / "state/src.json"), ("REPORTS", self.tmp / "reports")):
             p = mock.patch.object(c, name, val); p.start(); self.addCleanup(p.stop)
         self.now = dt.datetime(2026, 11, 10, 8, 0, tzinfo=NY)
@@ -1111,7 +1113,8 @@ class TestWeekOneReviewFixes(TempState):
 
     def test_mid_level_corporate_titles_are_excluded(self):
         for t in ("Apps Dev Intmd Programmer Analyst - Officer", "Chapter Leader, Trading",
-                  "Data Science Leader, B2B Marketing", "Software Engineering Advisor - Remote"):
+                  "Data Science Leader, B2B Marketing", "Software Engineering Advisor - Remote",
+                  "Software Engineering SMTS", "Full Stack Java Developer, AVP", "Product Developer, SVP, New York"):
             self.assertEqual(c.classify(J(t))[0], "EXCLUDED", t)
         self.assertNotEqual(c.classify(J("Software Engineer Intern - Leadership Development Program"))[0], "EXCLUDED")
 
@@ -1148,3 +1151,47 @@ class TestWeekOneReviewFixes(TempState):
                    fetch=lambda s, seen: first + [J("Software Engineering Intern", jid=3, loc="Denver, CO")])
         self.assertEqual(r2["new"], [])                                        # re-posted a few hours later: not re-sent
         self.assertEqual(r2["excluded"].get("already reported in an earlier alert"), 1)
+
+
+class TestSoftwareOnlyWithAI(TempState):
+    SRC = [dict(company="A", ats="greenhouse", slug="a")]
+    PLAIN = ("Build REST APIs in Java and Spring, React front ends, AWS deployment with Docker. Bachelor's in CS.")
+    AIDESC = ("Build services that serve LLMs and generative AI features; train models with PyTorch and deploy with MLOps tooling.")
+
+    def setUp(self):
+        super().setUp()
+        p = mock.patch.object(rel, "SWE_REQUIRE_AI", True); p.start(); self.addCleanup(p.stop)
+
+    def test_plain_software_roles_dropped_ai_software_roles_kept(self):
+        a = lambda t, d: rel.assess(dict(title=t, desc=d))
+        self.assertTrue(a("Software Engineer I", self.PLAIN).get("swe_no_ai"))
+        self.assertEqual(a("Software Engineer I", self.PLAIN)["relevance"], "MATCH")      # not dropped: goes to section 5
+        self.assertEqual(a("Software Engineer I", self.AIDESC)["relevance"], "MATCH")          # AI work in description
+        self.assertEqual(a("Software Engineer, Inference Platform", self.PLAIN)["relevance"], "MATCH")   # AI in title
+        self.assertEqual(a("AI Engineer", self.PLAIN)["family"], "Machine Learning / AI")
+        self.assertEqual(a("Data Analyst", self.PLAIN)["relevance"], "MATCH")                 # other families untouched
+        # list entries have no description: title decides
+        self.assertTrue(rel.assess(dict(title="Software Engineer", desc="", aggregator=True)).get("swe_no_ai"))
+        self.assertEqual(rel.assess(dict(title="ML Software Engineer", desc="", aggregator=True))["relevance"], "MATCH")
+
+    def test_run_counts_dropped_software_roles(self):
+        c.run(self.SRC, self.now, fetch=lambda s, seen: [])
+        jobs = [J("Software Engineer I", jid=1, desc=self.PLAIN), J("Software Engineer I, Applied AI", jid=2, desc=self.PLAIN),
+                J("Backend Engineer New Grad", jid=3, desc=self.AIDESC)]
+        r = c.run(self.SRC, self.now + dt.timedelta(hours=1), fetch=lambda s, seen: jobs)
+        self.assertEqual(sorted(n["title"] for n in r["new"]), ["Backend Engineer New Grad", "Software Engineer I, Applied AI"])
+        self.assertEqual([n["title"] for n in r["other_swe"]], ["Software Engineer I"])      # kept, in section 5
+        md = c.write_report(r)
+        self.assertLess(md.index("## 3."), md.index("## 5. Other software roles - 1"))
+        self.assertIn("- **Software Engineer I** - A | New York, NY | Entry-Level", md)
+        self.assertNotIn("- **Software Engineer I**\n", md)
+        self.assertIn("1 other software", c.email_subject(r))
+        rows = list(csv.DictReader(open(self.tmp / f"reports/{r['stamp']}.csv")))
+        self.assertEqual([x["title"] for x in rows if x["status"] == "OTHER_SOFTWARE"], ["Software Engineer I"])
+        sm = json.loads((self.tmp / f"reports/{r['stamp']}-summary.json").read_text())
+        self.assertEqual(sm["other_software"], 1)
+        self.assertTrue(pi.should_post(dict(sm, new=0, review=0)))                          # alone it still makes an alert
+
+    def test_switch_off_keeps_all_software(self):
+        with mock.patch.object(rel, "SWE_REQUIRE_AI", False):
+            self.assertEqual(rel.assess(dict(title="Software Engineer I", desc=self.PLAIN))["relevance"], "MATCH")
