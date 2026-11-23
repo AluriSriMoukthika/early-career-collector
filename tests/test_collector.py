@@ -183,24 +183,24 @@ class TestRunBehaviour(TempState):
         c.run(self.SRC[:1], self.now, fetch=lambda s, seen: [])                    # baseline (empty)
         now = self.now + dt.timedelta(days=1)
         def at(h): return (now - dt.timedelta(hours=h)).isoformat()
-        jobs = [dict(J("Fresh Intern", jid=1), posted_ts=at(3)), dict(J("Day-old Intern", jid=2), posted_ts=at(23.5)),
-                dict(J("Old Intern", jid=3), posted_ts=at(30)), dict(J("Undated Intern", jid=4)),
-                dict(J("WD Today Intern", jid=5), posted_rel="Posted Today"), dict(J("WD Old Intern", jid=6), posted_rel="Posted 5 Days Ago")]
+        jobs = [dict(J("Fresh Data Intern", jid=1), posted_ts=at(3)), dict(J("Day-old Data Intern", jid=2), posted_ts=at(23.5)),
+                dict(J("Old Data Intern", jid=3), posted_ts=at(30)), dict(J("Undated Data Intern", jid=4)),
+                dict(J("WD Today Data Intern", jid=5), posted_rel="Posted Today"), dict(J("WD Old Data Intern", jid=6), posted_rel="Posted 5 Days Ago")]
         r = c.run(self.SRC[:1], now, fetch=lambda s, seen: jobs)
-        self.assertEqual(sorted(n["title"] for n in r["new"]), ["Day-old Intern", "Fresh Intern", "Undated Intern", "WD Today Intern"])
-        self.assertEqual(sorted(n["title"] for n in r["older"]), ["Old Intern", "WD Old Intern"])
-        self.assertIn("no posting date", next(n for n in r["new"] if n["title"] == "Undated Intern")["reason"])
+        self.assertEqual(sorted(n["title"] for n in r["new"]), ["Day-old Data Intern", "Fresh Data Intern", "Undated Data Intern", "WD Today Data Intern"])
+        self.assertEqual(sorted(n["title"] for n in r["older"]), ["Old Data Intern", "WD Old Data Intern"])
+        self.assertIn("no posting date", next(n for n in r["new"] if n["title"] == "Undated Data Intern")["reason"])
         md = c.write_report(r)
-        self.assertNotIn("**Old Intern**", md)                                       # older postings are not in the email body
+        self.assertNotIn("**Old Data Intern**", md)                                       # older postings are not in the email body
         rows = list(csv.DictReader(open(self.tmp / f"reports/{r['stamp']}.csv")))
         self.assertEqual(sum(1 for x in rows if x["status"] == "OLDER_THAN_WINDOW"), 2)  # ...but are kept in the CSV
 
     def test_missed_day_widens_window(self):
         c.run(self.SRC[:1], self.now, fetch=lambda s, seen: [])
         now = self.now + dt.timedelta(days=2)                                        # one daily run was missed
-        job = dict(J("Gap Intern", jid=1), posted_ts=(now - dt.timedelta(hours=40)).isoformat())
+        job = dict(J("Gap Data Intern", jid=1), posted_ts=(now - dt.timedelta(hours=40)).isoformat())
         r = c.run(self.SRC[:1], now, fetch=lambda s, seen: [job])
-        self.assertEqual([n["title"] for n in r["new"]], ["Gap Intern"])
+        self.assertEqual([n["title"] for n in r["new"]], ["Gap Data Intern"])
 
     def test_email_capped_at_10_per_company(self):
         c.run(self.SRC[:1], self.now, fetch=lambda s, seen: [])
@@ -213,8 +213,8 @@ class TestRunBehaviour(TempState):
         self.assertEqual(len(list(csv.DictReader(open(self.tmp / f"reports/{r['stamp']}.csv")))), 25)   # nothing dropped
 
     def test_new_source_added_later_gets_its_own_baseline(self):
-        c.run(self.SRC[:1], self.now, fetch=lambda s, seen: [J("Intern A", jid=1)])
-        r = c.run(self.SRC, self.now, fetch=lambda s, seen: [J("Intern " + s["slug"], jid=7)])
+        c.run(self.SRC[:1], self.now, fetch=lambda s, seen: [J("Data Intern A", jid=1)])
+        r = c.run(self.SRC, self.now, fetch=lambda s, seen: [J("Data Intern " + s["slug"], jid=7)])
         self.assertEqual([n["company"] for n in r["new"]], ["A"]); self.assertEqual([n["company"] for n in r["baseline"]], ["B"])
 
     def test_failed_sources_never_look_like_no_opportunities(self):
@@ -1060,7 +1060,7 @@ class TestSimplifyList(TempState):
         feeds = {"greenhouse": direct, "simplify": listed}
         r = c.run([self.NG, self.GH], later, fetch=lambda s, seen: feeds[s["ats"]])
         self.assertEqual([(n["company"], n["title"]) for n in r["new"]], [("Acme Corp", "Software Engineer I")])
-        self.assertEqual(r["excluded"].get("already reported by another source"), 1)
+        self.assertEqual(r["excluded"].get("already reported in an earlier alert"), 1)
         r2 = c.run([self.NG, self.GH], later + dt.timedelta(hours=3), fetch=lambda s, seen: feeds[s["ats"]])
         self.assertEqual(r2["new"], [])
         # a different role at the same company is still reported from the list
@@ -1094,3 +1094,57 @@ class TestSimplifyList(TempState):
         with mock.patch.object(c, "http_json", return_value=entries), mock.patch.object(c.time, "time", return_value=self.now.timestamp()):
             r = c.run([self.NG], self.now)
         self.assertEqual(sorted(n["title"] for n in r["new"]), ["Data Analyst 0", "Data Analyst 1"])
+
+
+class TestWeekOneReviewFixes(TempState):
+    """Problems found by reviewing the reports sent 2026-11-15..23."""
+    SRC = [dict(company="A", ats="greenhouse", slug="a")]
+
+    def test_foreign_parts_are_not_us(self):
+        self.assertFalse(c.is_us("Bengaluru, India; India Pune (Mississippi Building)"))
+        self.assertFalse(c.is_us("Ottawa, 150 Elgin St., Corp; Vancouver, 510 W. Georgia, Corp"))
+        self.assertTrue(c.is_us("Ireland, Cork; US, MA, Wilmington"))
+        self.assertTrue(c.is_us("Warsaw, Indiana, United States of America"))
+        self.assertTrue(c.is_us("London, KY"))
+        self.assertTrue(c.is_us("US, New Mexico, Albuquerque"))
+        self.assertFalse(c.is_us("Guadalajara, Mexico"))
+
+    def test_mid_level_corporate_titles_are_excluded(self):
+        for t in ("Apps Dev Intmd Programmer Analyst - Officer", "Chapter Leader, Trading",
+                  "Data Science Leader, B2B Marketing", "Software Engineering Advisor - Remote"):
+            self.assertEqual(c.classify(J(t))[0], "EXCLUDED", t)
+        self.assertNotEqual(c.classify(J("Software Engineer Intern - Leadership Development Program"))[0], "EXCLUDED")
+
+    def test_profile_mismatches_are_unrelated(self):
+        for t in ("Process Integration Development Engineer", "Shift Equipment Engineer (Dry Etch)", "Actuarial Analyst",
+                  "UX/UI Design Intern", "MSAT Upstream Scientist", "Canada Indigenous Technology Apprenticeship Program"):
+            self.assertEqual(rel.assess(dict(title=t, desc=TECH))["relevance"], "UNRELATED", t)
+        self.assertEqual(rel.assess(dict(title="Data Intern", desc=TECH))["family"], "Analytics")
+        self.assertNotEqual(rel.assess(dict(title="Data Center Technician", desc=TECH))["family"], "Analytics")
+
+    def test_clearance_titles_and_cleared_only_employers_excluded(self):
+        c.run(self.SRC, self.now, fetch=lambda s, seen: [])
+        jobs = [J("DevOps Engineer I - TS/SCI", jid=1), J("Software Engineer I", jid=2)]
+        r = c.run(self.SRC, self.now + dt.timedelta(hours=1), fetch=lambda s, seen: jobs)
+        self.assertEqual([n["title"] for n in r["new"]], ["Software Engineer I"])
+        self.assertIn("Excluded — Citizenship/Clearance", r["excluded"])
+        lst = dict(company="SimplifyJobs New Grad list", ats="simplify", slug="New-Grad-Positions")
+        entry = dict(J("Software Engineer Level 0", jid="w1"), company="Wyetech", level_hint="New Graduate", aggregator=True, desc="")
+        r = c.run([lst], self.now + dt.timedelta(hours=2), fetch=lambda s, seen: [entry])
+        self.assertEqual(r["new"] + r["review"], [])
+
+    def test_title_without_target_family_goes_to_review(self):
+        c.run(self.SRC, self.now, fetch=lambda s, seen: [])
+        r = c.run(self.SRC, self.now + dt.timedelta(hours=1), fetch=lambda s, seen: [J("Associate, Operations Excellence", jid=1)])
+        self.assertEqual(r["new"], []); self.assertEqual(len(r["review"]), 1)
+        self.assertIn("does not name a data/AI/software role", r["review"][0]["reason"])
+
+    def test_reposted_role_from_same_source_not_sent_again(self):
+        c.run(self.SRC, self.now, fetch=lambda s, seen: [])
+        first = [J("Software Engineering Intern", jid=1, loc="Boston, MA"), J("Software Engineering Intern", jid=2, loc="Austin, TX")]
+        r1 = c.run(self.SRC, self.now + dt.timedelta(hours=1), fetch=lambda s, seen: first)
+        self.assertEqual(len(r1["new"]), 2)                                     # several cities in one run: all kept
+        r2 = c.run(self.SRC, self.now + dt.timedelta(hours=4),
+                   fetch=lambda s, seen: first + [J("Software Engineering Intern", jid=3, loc="Denver, CO")])
+        self.assertEqual(r2["new"], [])                                        # re-posted a few hours later: not re-sent
+        self.assertEqual(r2["excluded"].get("already reported in an earlier alert"), 1)
